@@ -10,6 +10,13 @@ const std = @import("std");
 const ghostty = @import("ghostty-vt");
 
 const allocator = std.heap.c_allocator;
+const graphics = @import("kitty_snapshot.zig");
+const Budget = @import("budget_allocator.zig").Budget;
+var decoder_once = std.once(installDecoder);
+
+fn installDecoder() void {
+    ghostty.sys.decode_png = decodePng;
+}
 const snapshot_header_i32_count = 14;
 const snapshot_cell_size = 11;
 const cell_flag_grapheme: u8 = 1 << 6;
@@ -40,14 +47,17 @@ const DeviceAttributes = blk: {
 const Stream = ghostty.Stream(*StreamHandler);
 
 const NovaTerminal = struct {
+    memory: Budget = .{},
+    image_hash: u64 = 0,
+    image_revision: u64 = 1,
     terminal: ghostty.Terminal,
     render_state: ghostty.RenderState = .empty,
     stream_handler: StreamHandler = undefined,
     stream: Stream = undefined,
     columns: u16,
     rows: u16,
-    cell_width: u32 = 1,
-    cell_height: u32 = 1,
+    cell_width: u32 = 8,
+    cell_height: u32 = 16,
     revision: u64 = 0,
     snapshot_buffer: std.ArrayListUnmanaged(u8) = .empty,
     snapshot_extras: std.ArrayListUnmanaged(u32) = .empty,
@@ -77,6 +87,10 @@ const StreamHandler = struct {
                 self.owner.clipboard_write.clearRetainingCapacity();
                 self.owner.clipboard_write.appendSlice(allocator, value.data) catch {};
             }
+        }
+        if (action == .apc_end) {
+            graphics.finishCommand(self.owner, &self.inner);
+            return;
         }
         self.inner.vt(action, value);
     }
@@ -113,8 +127,18 @@ fn xtversion(_: *ghostty.TerminalStream.Handler) []const u8 {
     return "NovaScale/libghostty-vt";
 }
 
-fn unsupportedPngDecoder(_: std.mem.Allocator, _: []const u8) ghostty.sys.DecodeError!ghostty.sys.Image {
-    return error.InvalidData;
+fn decodePng(alloc: std.mem.Allocator, data: []const u8) ghostty.sys.DecodeError!ghostty.sys.Image {
+    // Reject oversized IHDR dimensions before Wuffs allocates its output buffer.
+    if (data.len < 24 or !std.mem.eql(u8, data[0..8], "\x89PNG\r\n\x1a\n")) return error.InvalidData;
+    const width = std.mem.readInt(u32, data[16..20], .big);
+    const height = std.mem.readInt(u32, data[20..24], .big);
+    if (width == 0 or height == 0 or width > 4096 or height > 4096 or
+        @as(u64, width) * height * 4 > graphics.max_image_bytes) return error.InvalidData;
+    const result = @import("wuffs").png.decode(alloc, data) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        else => return error.InvalidData,
+    };
+    return .{ .width = result.width, .height = result.height, .data = result.data };
 }
 
 fn beginOscQuery(scanner: *OscQueryScanner) void {
@@ -224,34 +248,33 @@ fn inspectOscColorQueries(terminal: *NovaTerminal, data: []const u8) void {
 }
 
 fn updateRenderState(terminal: *NovaTerminal) bool {
-    terminal.render_state.update(allocator, &terminal.terminal) catch return false;
+    terminal.render_state.update(terminal.memory.allocator(), &terminal.terminal) catch return false;
     return true;
 }
 
 export fn nova_ghostty_create(columns: u32, rows: u32, max_scrollback: u32) callconv(.c) usize {
     if (columns == 0 or columns > std.math.maxInt(u16) or rows == 0 or rows > std.math.maxInt(u16)) return 0;
-    ghostty.sys.decode_png = unsupportedPngDecoder;
+    decoder_once.call();
 
     const result = allocator.create(NovaTerminal) catch return 0;
-    errdefer allocator.destroy(result);
-    var inner = ghostty.Terminal.init(allocator, .{
+    var success = false;
+    defer if (!success) allocator.destroy(result);
+    result.* = .{ .terminal = undefined, .columns = @intCast(columns), .rows = @intCast(rows) };
+    const alloc = result.memory.allocator();
+    const inner = ghostty.Terminal.init(alloc, .{
         .cols = @intCast(columns),
         .rows = @intCast(rows),
         .max_scrollback = @intCast(@min(max_scrollback, 100_000)),
-        .kitty_image_storage_limit = 0,
+        .kitty_image_storage_limit = graphics.max_image_bytes,
         .kitty_image_loading_limits = .{
             .file = false,
             .temporary_file = false,
             .shared_memory = false,
         },
     }) catch return 0;
-    errdefer inner.deinit(allocator);
-
-    result.* = .{
-        .terminal = inner,
-        .columns = @intCast(columns),
-        .rows = @intCast(rows),
-    };
+    result.terminal = inner;
+    result.terminal.width_px = columns * 8;
+    result.terminal.height_px = rows * 16;
     var handler = result.terminal.vtHandler();
     handler.effects = .{
         .write_pty = writePty,
@@ -264,13 +287,14 @@ export fn nova_ghostty_create(columns: u32, rows: u32, max_scrollback: u32) call
         .xtversion = xtversion,
     };
     result.stream_handler = .{ .owner = result, .inner = handler };
-    result.stream = Stream.initAlloc(allocator, &result.stream_handler);
+    result.stream = Stream.initAlloc(alloc, &result.stream_handler);
     result.stream.nextSlice("\x1b[?2027h");
     if (!updateRenderState(result)) {
         result.stream.deinit();
-        result.terminal.deinit(allocator);
+        result.terminal.deinit(alloc);
         return 0;
     }
+    success = true;
     return @intFromPtr(result);
 }
 
@@ -280,9 +304,9 @@ export fn nova_ghostty_destroy(handle: usize) callconv(.c) void {
     terminal.snapshot_extras.deinit(allocator);
     terminal.pty_writes.deinit(allocator);
     terminal.clipboard_write.deinit(allocator);
-    terminal.render_state.deinit(allocator);
+    terminal.render_state.deinit(terminal.memory.allocator());
     terminal.stream.deinit();
-    terminal.terminal.deinit(allocator);
+    terminal.terminal.deinit(terminal.memory.allocator());
     allocator.destroy(terminal);
 }
 
@@ -307,7 +331,7 @@ export fn nova_ghostty_resize(
 ) callconv(.c) u64 {
     const terminal = fromHandle(handle) orelse return 0;
     if (columns == 0 or columns > std.math.maxInt(u16) or rows == 0 or rows > std.math.maxInt(u16)) return terminal.revision;
-    terminal.terminal.resize(allocator, @intCast(columns), @intCast(rows)) catch return terminal.revision;
+    terminal.terminal.resize(terminal.memory.allocator(), @intCast(columns), @intCast(rows)) catch return terminal.revision;
     terminal.columns = @intCast(columns);
     terminal.rows = @intCast(rows);
     terminal.cell_width = @max(cell_width, 1);
@@ -429,7 +453,7 @@ fn cursorShapeCode(style: ghostty.CursorStyle) i32 {
     };
 }
 
-export fn nova_ghostty_snapshot(handle: usize, out_size: ?*usize) callconv(.c) ?[*]const u8 {
+export fn nova_ghostty_snapshot(handle: usize, known_image_revision: u64, out_size: ?*usize) callconv(.c) ?[*]const u8 {
     const terminal = fromHandle(handle) orelse return null;
     const size_result = out_size orelse return null;
     if (!updateRenderState(terminal)) return null;
@@ -458,7 +482,10 @@ export fn nova_ghostty_snapshot(handle: usize, out_size: ?*usize) callconv(.c) ?
     inline for (.{ .mouse_event_x10, .mouse_event_normal, .mouse_event_button, .mouse_event_any, .mouse_format_sgr, .mouse_format_utf8, .mouse_format_urxvt, .mouse_format_sgr_pixels }, 0..) |mode, bit| {
         if (terminal.terminal.modes.get(mode)) mouse_flags |= @as(i32, 1) << @intCast(bit);
     }
-    writeLittle(i32, buffer, 52, mouse_flags | (if (terminal.terminal.modes.get(.bracketed_paste)) @as(i32, 256) else 0));
+    const keyboard_flags: i32 = terminal.terminal.screens.active.kitty_keyboard.current().int();
+    writeLittle(i32, buffer, 52, mouse_flags |
+        (if (terminal.terminal.modes.get(.bracketed_paste)) @as(i32, 256) else 0) |
+        (keyboard_flags << 9));
 
     terminal.snapshot_extras.clearRetainingCapacity();
     var extras_count: usize = 0;
@@ -512,10 +539,6 @@ export fn nova_ghostty_snapshot(handle: usize, out_size: ?*usize) callconv(.c) ?
         }
     }
 
-    if (extras_count == 0) {
-        size_result.* = base_size;
-        return buffer.ptr;
-    }
     const extras_offset = base_size;
     const total_size = base_size + @sizeOf(u32) + terminal.snapshot_extras.items.len * @sizeOf(u32);
     buffer = ensureBytes(&terminal.snapshot_buffer, total_size) orelse return null;
@@ -526,8 +549,16 @@ export fn nova_ghostty_snapshot(handle: usize, out_size: ?*usize) callconv(.c) ?
         writeLittle(u32, buffer, offset, word);
         offset += @sizeOf(u32);
     }
-    size_result.* = total_size;
-    return buffer.ptr;
+    // Always append a versioned graphics trailer after the grapheme records.
+    graphics.appendSnapshot(terminal, known_image_revision) catch return null;
+    writeLittle(i32, terminal.snapshot_buffer.items, 52, mouse_flags |
+        (if (terminal.terminal.modes.get(.bracketed_paste)) @as(i32, 256) else 0) |
+        (keyboard_flags << 9) | (1 << 14));
+    if (terminal.snapshot_buffer.capacity > @max(1024 * 1024, terminal.snapshot_buffer.items.len * 2)) {
+        terminal.snapshot_buffer.shrinkAndFree(allocator, terminal.snapshot_buffer.items.len);
+    }
+    size_result.* = terminal.snapshot_buffer.items.len;
+    return terminal.snapshot_buffer.items.ptr;
 }
 
 // A one-shot bounded control event, not a network data-plane transport.

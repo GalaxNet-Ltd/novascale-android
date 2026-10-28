@@ -22,15 +22,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.Cancel
-import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.KeyboardHide
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material3.AlertDialog
@@ -49,16 +45,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
@@ -81,7 +76,7 @@ import cc.galaxnet.novascale.ui.asString
 import cc.galaxnet.novascale.ui.uiText
 import java.util.UUID
 
-private data class TerminalChromeColors(
+internal data class TerminalChromeColors(
     val background: Color,
     val terminalBackground: Color,
     val foreground: Color,
@@ -122,7 +117,7 @@ internal fun TerminalScreen(
     onEditSshSettings: () -> Unit,
 ) {
     val chrome = remember(terminalTheme) { terminalTheme.chromeColors() }
-    val group = remember(terminalSessions, sessionKey) {
+    val group = remember(terminalSessions, sessionKey, initialConfig) {
         terminalSessions.getOrCreate(
             key = sessionKey,
             hostId = hostId,
@@ -152,6 +147,15 @@ internal fun TerminalScreen(
     var terminalInputCollapsed by remember(selectedTabId) { mutableStateOf(false) }
     var controlActive by remember(selectedTabId) { mutableStateOf(false) }
     var altActive by remember(selectedTabId) { mutableStateOf(false) }
+    var shiftActive by remember(selectedTabId) { mutableStateOf(false) }
+    LaunchedEffect(state.connected) {
+        if (!state.connected) {
+            controlActive = false
+            altActive = false
+            shiftActive = false
+            terminalView?.setOneShotModifiers(false, false, false)
+        }
+    }
     var closeSessionRequested by remember { mutableStateOf(false) }
     var tabActions by remember { mutableStateOf<TerminalSessionTab?>(null) }
     var tabPendingClose by remember { mutableStateOf<TerminalSessionTab?>(null) }
@@ -161,6 +165,10 @@ internal fun TerminalScreen(
         group.addTab(connectImmediately = tailnetState is TailnetState.Running)
     }
     val resignTerminalInput: () -> Unit = {
+        controlActive = false
+        altActive = false
+        shiftActive = false
+        terminalView?.setOneShotModifiers(false, false, false)
         terminalView?.releaseTerminalInput()
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
@@ -187,7 +195,7 @@ internal fun TerminalScreen(
         controller.applyTheme(terminalTheme.toNativeTheme())
     }
 
-    LaunchedEffect(tailnetState, group) {
+    LaunchedEffect(tailnetState, group, initialConfig) {
         if (tailnetState is TailnetState.Running && initialConfig.validate() == null) {
             group.ensureConnected()
         }
@@ -394,16 +402,19 @@ internal fun TerminalScreen(
                                 selectedTextArgb = terminalTheme.selectedText,
                             )
                             setTextSizeChangedListener(onTerminalFontSize)
-                            setOneShotModifiers(controlActive, altActive)
+                            setOneShotModifiers(controlActive, altActive, shiftActive)
                             setTerminalCallbacks(
                                 onInput = controller::send,
-                                onResize = { columns, rows ->
-                                    group.resizeFromView(tab.id, viewAttachmentId, columns, rows)
+                                onResize = null,
+                                resizeToken = tab.id,
+                                onResizePixels = { columns, rows, cellWidth, cellHeight ->
+                                    group.resizeFromView(tab.id, viewAttachmentId, columns, rows, cellWidth, cellHeight)
                                 },
                                 onScroll = controller::scroll,
                                 onModifiersConsumed = {
                                     controlActive = false
                                     altActive = false
+                                    shiftActive = false
                                 },
                             )
                             state.snapshot?.let(::submitSnapshot)
@@ -427,19 +438,22 @@ internal fun TerminalScreen(
                             selectedTextArgb = terminalTheme.selectedText,
                         )
                         view.setTextSizeChangedListener(onTerminalFontSize)
-                        view.setOneShotModifiers(controlActive, altActive)
+                        view.setOneShotModifiers(controlActive, altActive, shiftActive)
                         view.setWindowFocusGainedListener {
                             group.activateView(viewAttachmentId)
                         }
                         view.setTerminalCallbacks(
                             onInput = controller::send,
-                            onResize = { columns, rows ->
-                                group.resizeFromView(tab.id, viewAttachmentId, columns, rows)
+                            onResize = null,
+                            resizeToken = tab.id,
+                            onResizePixels = { columns, rows, cellWidth, cellHeight ->
+                                group.resizeFromView(tab.id, viewAttachmentId, columns, rows, cellWidth, cellHeight)
                             },
                             onScroll = controller::scroll,
                             onModifiersConsumed = {
                                 controlActive = false
                                 altActive = false
+                                shiftActive = false
                             },
                         )
                         state.snapshot?.let(view::submitSnapshot)
@@ -461,29 +475,35 @@ internal fun TerminalScreen(
                 )
             }
             if (!terminalInputCollapsed) {
-                TerminalAccessoryKeyboard(
-                    colors = chrome,
-                    controlActive = controlActive,
-                    altActive = altActive,
-                    onDetach = detachTerminal,
-                    onCloseSession = { closeSessionRequested = true },
-                    onModifiersChanged = { control, alt ->
-                        controlActive = control
-                        altActive = alt
-                        terminalView?.setOneShotModifiers(control, alt)
-                    },
-                    onSend = controller::send,
-                    onPaste = { terminalView?.pasteFromClipboard() },
-                    onKeepTerminalFocus = {
-                        terminalView?.requestTerminalInput(showSoftwareKeyboard = false)
-                    },
-                    onCollapseInput = {
-                        terminalView?.releaseTerminalInput()
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
-                        terminalInputCollapsed = true
-                    },
-                )
+                key(selectedTabId) {
+                    TerminalAccessoryKeyboard(
+                        colors = chrome,
+                        controlActive = controlActive,
+                        altActive = altActive,
+                        shiftActive = shiftActive,
+                        bracketedPasteEnabled = state.snapshot?.bracketedPasteEnabled == true,
+                        keyboardFlags = state.snapshot?.keyboardEnhancementFlags ?: 0,
+                        onDetach = detachTerminal,
+                        onCloseSession = { closeSessionRequested = true },
+                        onModifiersChanged = { control, alt, shift ->
+                            controlActive = control
+                            altActive = alt
+                            shiftActive = shift
+                            terminalView?.setOneShotModifiers(control, alt, shift)
+                        },
+                        onSend = controller::send,
+                        onPaste = { terminalView?.pasteFromClipboard() },
+                        onKeepTerminalFocus = {
+                            terminalView?.requestTerminalInput(showSoftwareKeyboard = false)
+                        },
+                        onCollapseInput = {
+                            terminalView?.releaseTerminalInput()
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            terminalInputCollapsed = true
+                        },
+                    )
+                }
             }
         } else {
             TerminalConnectionSurface(
@@ -789,232 +809,3 @@ private fun TerminalTabBar(
         }
     }
 }
-
-@Composable
-private fun TerminalAccessoryKeyboard(
-    colors: TerminalChromeColors,
-    controlActive: Boolean,
-    altActive: Boolean,
-    onDetach: () -> Unit,
-    onCloseSession: () -> Unit,
-    onModifiersChanged: (control: Boolean, alt: Boolean) -> Unit,
-    onSend: (ByteArray) -> Unit,
-    onPaste: () -> Unit,
-    onKeepTerminalFocus: () -> Unit,
-    onCollapseInput: () -> Unit,
-) {
-    var symbolsVisible by rememberSaveable { mutableStateOf(true) }
-
-    fun send(value: String, isNavigation: Boolean = false) {
-        onKeepTerminalFocus()
-        onSend(terminalAccessorySequence(value, controlActive, altActive, isNavigation))
-        onModifiersChanged(false, false)
-    }
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .imePadding(),
-        color = colors.background,
-        border = BorderStroke(1.dp, colors.border),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = NovaSpacing.xs),
-            verticalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = NovaSpacing.sm, end = NovaSpacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TerminalIconKey(
-                        colors = colors,
-                        icon = Icons.AutoMirrored.Outlined.OpenInNew,
-                        contentDescription = stringResource(R.string.cd_detach_terminal),
-                        tint = colors.accent,
-                        onClick = onDetach,
-                    )
-                    TerminalIconKey(
-                        colors = colors,
-                        icon = Icons.Outlined.Cancel,
-                        contentDescription = stringResource(R.string.cd_close_terminal),
-                        tint = colors.destructive,
-                        onClick = onCloseSession,
-                    )
-                    TerminalAccessorySeparator(colors)
-                    TerminalKey(colors, "Esc") { send("\u001b") }
-                    TerminalKey(colors, "Ctl", selected = controlActive) {
-                        onKeepTerminalFocus()
-                        onModifiersChanged(!controlActive, altActive)
-                    }
-                    TerminalKey(colors, "Alt", selected = altActive) {
-                        onKeepTerminalFocus()
-                        onModifiersChanged(controlActive, !altActive)
-                    }
-                    TerminalKey(colors, "Tab") { send("\t") }
-                    TerminalKey(colors, "←") { send("D", isNavigation = true) }
-                    TerminalKey(colors, "↓") { send("B", isNavigation = true) }
-                    TerminalKey(colors, "↑") { send("A", isNavigation = true) }
-                    TerminalKey(colors, "→") { send("C", isNavigation = true) }
-                    TerminalIconKey(
-                        colors = colors,
-                        icon = Icons.Outlined.ContentPaste,
-                        contentDescription = stringResource(R.string.cd_paste),
-                        tint = colors.foreground,
-                        onClick = {
-                            onKeepTerminalFocus()
-                            onPaste()
-                            onModifiersChanged(false, false)
-                        },
-                    )
-                    TerminalKey(
-                        colors,
-                        stringResource(
-                            if (symbolsVisible) R.string.terminal_symbols_hide
-                            else R.string.terminal_symbols_show,
-                        ),
-                    ) {
-                        onKeepTerminalFocus()
-                        symbolsVisible = !symbolsVisible
-                    }
-                }
-                TerminalIconKey(
-                    colors = colors,
-                    icon = Icons.Outlined.KeyboardHide,
-                    contentDescription = stringResource(R.string.cd_hide_keyboard),
-                    tint = colors.foreground,
-                    onClick = onCollapseInput,
-                )
-            }
-            if (symbolsVisible) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = NovaSpacing.sm),
-                    horizontalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
-                ) {
-                    TerminalSymbols.forEach { symbol ->
-                        TerminalKey(colors, symbol) { send(symbol) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TerminalIconKey(
-    colors: TerminalChromeColors,
-    icon: ImageVector,
-    contentDescription: String,
-    tint: Color,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .size(38.dp)
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, colors.border),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(19.dp),
-                tint = tint,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TerminalAccessorySeparator(colors: TerminalChromeColors) {
-    Surface(
-        modifier = Modifier.size(width = 1.dp, height = 26.dp),
-        color = colors.border,
-    ) {}
-}
-
-@Composable
-private fun TerminalKey(
-    colors: TerminalChromeColors,
-    label: String,
-    selected: Boolean = false,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .heightIn(min = 38.dp)
-            .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.small,
-        color = if (selected) colors.foreground else Color.Transparent,
-        border = BorderStroke(1.dp, if (selected) colors.foreground else colors.border),
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                label,
-                color = if (selected) colors.terminalBackground else colors.foreground,
-                style = MaterialTheme.typography.labelLarge,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-internal fun terminalAccessorySequence(
-    value: String,
-    control: Boolean,
-    alt: Boolean,
-    navigation: Boolean,
-): ByteArray {
-    if (navigation) {
-        var modifier = 1
-        if (alt) modifier += 2
-        if (control) modifier += 4
-        val sequence = if (modifier == 1) "\u001b[$value" else "\u001b[1;${modifier}$value"
-        return sequence.toByteArray(Charsets.UTF_8)
-    }
-
-    val payload = if (control && value.length == 1) {
-        val codepoint = value[0].code
-        byteArrayOf(
-            when (codepoint) {
-                ' '.code, '@'.code -> 0
-                in 'a'.code..'z'.code -> codepoint - 'a'.code + 1
-                in 'A'.code..'Z'.code -> codepoint - 'A'.code + 1
-                '['.code -> 27
-                '\\'.code -> 28
-                ']'.code -> 29
-                '^'.code -> 30
-                '_'.code -> 31
-                '?'.code -> 127
-                else -> codepoint
-            }.toByte(),
-        )
-    } else {
-        value.toByteArray(Charsets.UTF_8)
-    }
-    return if (alt) byteArrayOf(0x1b) + payload else payload
-}
-
-private val TerminalSymbols = listOf(
-    "/", "-", "_", "|", "~", ".", ":", ";", "$", "@", "#", "&", "*",
-    "(", ")", "{", "}", "[", "]", "'", "\"", "`",
-)

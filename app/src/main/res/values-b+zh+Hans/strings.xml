@@ -201,6 +201,14 @@
     <string name="cd_close_terminal">关闭终端会话</string>
     <string name="cd_paste">粘贴</string>
     <string name="cd_hide_keyboard">隐藏键盘和辅助栏</string>
+    <string name="terminal_shift">Shift 换档键</string>
+    <string name="terminal_insert_newline">插入换行（需要括号粘贴模式）</string>
+    <string name="terminal_navigation">方向导航</string>
+    <string name="terminal_navigation_hint">向任意方向拖动并按住可连续发送方向键。轻点可显示方向按钮。</string>
+    <string name="terminal_arrow_left">向左</string>
+    <string name="terminal_arrow_down">向下</string>
+    <string name="terminal_arrow_up">向上</string>
+    <string name="terminal_arrow_right">向右</string>
     <string name="terminal_symbols_show">符号 +</string>
     <string name="terminal_symbols_hide">符号 −</string>
     <string name="terminal_requires_tailnet">请先连接嵌入式 Tailnet，再打开 SSH。</string>

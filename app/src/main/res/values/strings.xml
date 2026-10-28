@@ -213,6 +213,14 @@
     <string name="cd_close_terminal">Close terminal session</string>
     <string name="cd_paste">Paste</string>
     <string name="cd_hide_keyboard">Hide keyboard and accessory</string>
+    <string name="terminal_shift">Shift</string>
+    <string name="terminal_insert_newline">Insert newline (requires bracketed paste)</string>
+    <string name="terminal_navigation">Arrow navigation</string>
+    <string name="terminal_navigation_hint">Drag in a direction and hold to repeat. Tap for arrow buttons.</string>
+    <string name="terminal_arrow_left">Left arrow</string>
+    <string name="terminal_arrow_down">Down arrow</string>
+    <string name="terminal_arrow_up">Up arrow</string>
+    <string name="terminal_arrow_right">Right arrow</string>
     <string name="terminal_symbols_show">Symbols +</string>
     <string name="terminal_symbols_hide">Symbols −</string>
     <string name="terminal_requires_tailnet">Connect the embedded tailnet before opening SSH.</string>

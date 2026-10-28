@@ -99,6 +99,10 @@ pub enum Command {
     Resize {
         columns: u32,
         rows: u32,
+        #[serde(default = "default_cell_width")]
+        cell_width: u32,
+        #[serde(default = "default_cell_height")]
+        cell_height: u32,
     },
     TerminalScroll {
         rows: i32,
@@ -292,4 +296,11 @@ mod tests {
         );
         assert!(result.is_err());
     }
+}
+
+fn default_cell_width() -> u32 {
+    8
+}
+fn default_cell_height() -> u32 {
+    16
 }

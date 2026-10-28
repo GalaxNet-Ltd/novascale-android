@@ -93,7 +93,11 @@ internal class TerminalSessionRegistry private constructor(
     ): TerminalSessionGroup {
         require(key.isNotBlank())
         require(hostId.isNotBlank())
-        return groups[key] ?: TerminalSessionGroup(
+        groups[key]?.let { group ->
+            group.updateConnectionConfig(config)
+            return group
+        }
+        return TerminalSessionGroup(
             key = key,
             hostId = hostId,
             peer = peer,
@@ -199,9 +203,11 @@ internal class TerminalSessionGroup(
         attachmentId: String,
         columns: Int,
         rows: Int,
+        cellWidth: Int = 8,
+        cellHeight: Int = 16,
     ) {
         if (activeViewId != attachmentId) return
-        mutableTabs.value.firstOrNull { it.id == tabId }?.runtime?.resize(columns, rows)
+        mutableTabs.value.firstOrNull { it.id == tabId }?.runtime?.resizeWithMetrics(columns, rows, cellWidth, cellHeight)
     }
 
     fun selectTab(tabId: Int) {
@@ -210,6 +216,12 @@ internal class TerminalSessionGroup(
 
     fun ensureConnected() {
         mutableTabs.value.forEach { tab -> tab.runtime.connectIfNeeded(tab.config) }
+    }
+
+    /** Saved-profile edits affect future connections, while live SSH sessions stay attached. */
+    fun updateConnectionConfig(config: RemoteConnectionConfig) {
+        if (closed || mutableTabs.value.all { it.config == config }) return
+        mutableTabs.value = mutableTabs.value.map { it.copy(config = config) }
     }
 
     fun addTab(connectImmediately: Boolean) {

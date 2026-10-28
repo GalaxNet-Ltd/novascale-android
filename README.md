@@ -14,8 +14,9 @@ The Android application includes:
 - External-browser web login, a custom HTTPS control server, persisted node state, lifetime peer discovery with an online-only default, route-aware Tailscale ping, logout, and a socket-pair FD bridge for tailnet streams.
 - `russh 0.62.2` SSH with Tailscale SSH none, password, and OpenSSH private-key authentication; strict shared TOFU/change host-key handling; PTY resize; and up to six terminal tabs.
 - `libghostty-vt` pinned to commit `a746d0f7281954eb251915f4cd9fcea4924ad999`, exposed through a narrow Zig/Rust binary-snapshot adapter.
+- Kitty graphics for direct PNG/RGB/RGBA uploads, zlib/chunking, Unicode placeholders, and Canvas rendering, with bounded native decoding and cached image assets.
 - A GPLv3 Termux-derived Android `View` using hardware-accelerated Canvas, with IME/hardware-key input, special keys, paste, scrolling, and pinch-to-resize.
-- An iOS-aligned Compose design system, compact grouped host surfaces, saved-SSH continuation, automatic Terminal/Files connection, 16 sp terminal type, and a functional two-row terminal accessory keyboard.
+- An iOS-aligned Compose design system, compact grouped host surfaces, saved-SSH continuation, automatic Terminal/Files connection, and a two-row terminal accessory with a drag arrow pad, one-shot Ctrl/Alt/Shift, bracketed-paste newline, symbols, and F1–F12.
 - English-default UI resources with system-selected Simplified Chinese (`zh-Hans`) and Traditional Chinese (`zh-Hant`) across Home, Settings, SSH, Terminal, Files, Preview, accessibility labels, runtime states, and terminal notifications.
 - `russh-sftp 2.3.0` directory browsing plus UTF-8 editing for files up to 2 MiB,
   including automatic editor fallback for unsupported preview formats that

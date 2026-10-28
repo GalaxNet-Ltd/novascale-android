@@ -1,0 +1,8 @@
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M12,3 L3,12 L8,12 L8,21 L16,21 L16,12 L21,12 Z"
+        android:fillColor="#00000000" android:strokeColor="#FF000000"
+        android:strokeWidth="1.8" android:strokeLineJoin="round" />
+</vector>

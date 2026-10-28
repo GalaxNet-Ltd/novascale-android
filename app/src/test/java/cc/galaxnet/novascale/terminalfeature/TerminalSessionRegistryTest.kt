@@ -7,6 +7,7 @@
 package cc.galaxnet.novascale.terminalfeature
 
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
+import cc.galaxnet.novascale.remote.AuthenticationKind
 import cc.galaxnet.novascale.core.TailnetPeer
 import cc.galaxnet.novascale.nativecore.NativeTerminalTheme
 import cc.galaxnet.novascale.ui.asUiText
@@ -20,6 +21,48 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TerminalSessionRegistryTest {
+    @Test
+    fun editingPasswordRetriesTheExistingGroupWithTheSavedCredentials() {
+        val runtime = FakeTerminalRuntime()
+        val registry = TerminalSessionRegistry(runtimeFactory = { runtime }, testing = Unit)
+        val peer = testPeer("retry-host", "Retry host")
+        val wrong = RemoteConnectionConfig(host = "retry-host", username = "tester",
+            authenticationKind = AuthenticationKind.PASSWORD, password = "wrong-fixture-password")
+        val group = registry.getOrCreate("same-session", "retry-host", peer, wrong)
+        group.ensureConnected()
+        runtime.failAuthentication()
+        val corrected = wrong.copy(password = "correct-fixture-password")
+
+        val returned = registry.getOrCreate("same-session", "retry-host", peer, corrected)
+        assertSame(group, returned)
+        assertSame(runtime, returned.tabs.value.single().runtime)
+        returned.ensureConnected()
+        assertEquals(listOf(wrong, corrected), runtime.connectionRequests)
+        assertEquals(corrected, returned.tabs.value.single().config)
+        assertFalse(runtime.closed)
+        assertEquals(1, registry.sessions.value.size)
+    }
+
+    @Test
+    fun profileEditsDoNotReconnectHealthyTabsAndNewTabsUseTheEdit() {
+        val runtimes = mutableListOf<FakeTerminalRuntime>()
+        val registry = TerminalSessionRegistry(runtimeFactory = { FakeTerminalRuntime().also(runtimes::add) }, testing = Unit)
+        val peer = testPeer("live-host", "Live host")
+        val original = RemoteConnectionConfig(host = "live-host", username = "before")
+        val group = registry.getOrCreate("live-session", "live-host", peer, original)
+        group.addTab(connectImmediately = true)
+        group.ensureConnected()
+        runtimes.forEach { it.markConnected() }
+        val updated = original.copy(username = "after", port = "2222")
+
+        registry.getOrCreate("live-session", "live-host", peer, updated).ensureConnected()
+        assertTrue(group.tabs.value.all { it.config == updated })
+        assertTrue(runtimes.all { it.connectionRequests == listOf(original) && !it.closed })
+        group.addTab(connectImmediately = true)
+        assertEquals(listOf(updated), runtimes.last().connectionRequests)
+        assertEquals(3, group.tabs.value.size)
+    }
+
     @Test
     fun detachingViewPreservesRuntimeAndReusesGroup() {
         val runtimes = mutableListOf<FakeTerminalRuntime>()
@@ -160,9 +203,17 @@ private class FakeTerminalRuntime : TerminalRuntime {
     override val state: StateFlow<TerminalConnectionState> = mutableState
     var closed = false
     val resizeEvents = mutableListOf<Pair<Int, Int>>()
+    val connectionRequests = mutableListOf<RemoteConnectionConfig>()
 
-    override fun connect(config: RemoteConnectionConfig) = Unit
-    override fun connectIfNeeded(config: RemoteConnectionConfig) = Unit
+    override fun connect(config: RemoteConnectionConfig) {
+        connectionRequests += config
+        mutableState.value = TerminalConnectionState(busy = true)
+    }
+    override fun connectIfNeeded(config: RemoteConnectionConfig) {
+        if (!mutableState.value.connected && !mutableState.value.busy) connect(config)
+    }
+    fun failAuthentication() { mutableState.value = TerminalConnectionState() }
+    fun markConnected() { mutableState.value = TerminalConnectionState(connected = true) }
     override fun acceptHostKey() = Unit
     override fun rejectHostKey() = Unit
     override fun send(bytes: ByteArray) = Unit

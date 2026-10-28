@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,6 +54,8 @@ internal interface TerminalRuntime : AutoCloseable {
     fun send(bytes: ByteArray)
 
     fun resize(newColumns: Int, newRows: Int)
+
+    fun resizeWithMetrics(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int) = resize(columns, rows)
 
     fun scroll(rows: Int)
 
@@ -155,10 +158,18 @@ internal class TerminalConnectionController(
         scope.launch(Dispatchers.IO) { nativeSession?.sendInput(bytes) }
     }
 
-    override fun resize(newColumns: Int, newRows: Int) {
-        columns = newColumns.coerceIn(20, 500)
-        rows = newRows.coerceIn(5, 300)
-        scope.launch(Dispatchers.IO) { nativeSession?.resize(columns, rows) }
+    private var cellWidth = 8
+    private var cellHeight = 16
+
+    override fun resize(newColumns: Int, newRows: Int) = resizeWithMetrics(newColumns, newRows, cellWidth, cellHeight)
+
+    override fun resizeWithMetrics(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int) {
+        this.columns = columns.coerceIn(20, 500)
+        this.rows = rows.coerceIn(5, 300)
+        this.cellWidth = cellWidth.coerceIn(1, 512)
+        this.cellHeight = cellHeight.coerceIn(1, 512)
+        val size = intArrayOf(this.columns, this.rows, this.cellWidth, this.cellHeight)
+        scope.launch(Dispatchers.IO) { nativeSession?.resize(size[0], size[1], size[2], size[3]) }
     }
 
     override fun scroll(rows: Int) {
@@ -184,12 +195,12 @@ internal class TerminalConnectionController(
         while (scope.isActive && nativeSession === session) {
             val event = session.pollEvent(750) ?: continue
             when (event.type) {
-                "authenticated" -> update {
+                "authenticated" -> update(session) {
                     it.copy(status = uiText(R.string.terminal_status_authenticated))
                 }
                 "ready" -> {
                     val snapshot = runCatching { session.terminalSnapshot() }.getOrNull()
-                    update {
+                    update(session) {
                         it.copy(
                             status = uiText(R.string.status_connected),
                             busy = false,
@@ -203,11 +214,11 @@ internal class TerminalConnectionController(
                 }
                 "snapshot_changed" -> {
                     val snapshot = runCatching { session.terminalSnapshot() }.getOrNull() ?: continue
-                    update { it.copy(snapshot = snapshot) }
+                    update(session) { it.copy(snapshot = snapshot) }
                 }
                 "host_key_unknown", "host_key_changed" -> {
                     val fingerprint = event.fingerprint ?: continue
-                    update {
+                    update(session) {
                         it.copy(
                             status = if (event.type == "host_key_changed") {
                                 uiText(R.string.host_key_changed_warning)
@@ -224,16 +235,20 @@ internal class TerminalConnectionController(
                         )
                     }
                 }
-                "error" -> update {
-                    it.copy(
-                        status = event.message?.asUiText()
-                            ?: uiText(R.string.terminal_status_failed),
-                        busy = false,
-                        connected = false,
-                    )
+                "error" -> {
+                    finishSession(session) {
+                        it.copy(
+                            status = if (it.hostKeyPrompt != null) it.status else event.message?.asUiText()
+                                ?: uiText(R.string.terminal_status_failed),
+                            busy = false,
+                            connected = false,
+                            snapshot = null,
+                        )
+                    }
+                    break
                 }
                 "closed", "event_stream_closed" -> {
-                    update {
+                    finishSession(session) {
                         it.copy(
                             status = event.exitStatus?.let {
                                 uiText(R.string.terminal_status_exited, it)
@@ -242,7 +257,6 @@ internal class TerminalConnectionController(
                             connected = false,
                         )
                     }
-                    if (nativeSession === session) nativeSession = null
                     break
                 }
             }
@@ -254,12 +268,24 @@ internal class TerminalConnectionController(
         eventJob = null
         val session = nativeSession
         nativeSession = null
-        withContext(Dispatchers.IO) { runCatching { session?.close() } }
+        withContext(NonCancellable + Dispatchers.IO) { runCatching { session?.close() } }
     }
 
-    private suspend fun update(block: (TerminalConnectionState) -> TerminalConnectionState) {
+    private suspend fun finishSession(session: NativeSession, block: (TerminalConnectionState) -> TerminalConnectionState) {
         withContext(Dispatchers.Main.immediate) {
-            mutableState.value = block(mutableState.value)
+            if (nativeSession === session) {
+                nativeSession = null
+                eventJob = null
+                mutableState.value = block(mutableState.value)
+            }
+        }
+        // Release the failed/closed native entry even if a new attempt cancels this poller.
+        withContext(NonCancellable + Dispatchers.IO) { runCatching { session.close() } }
+    }
+
+    private suspend fun update(session: NativeSession, block: (TerminalConnectionState) -> TerminalConnectionState) {
+        withContext(Dispatchers.Main.immediate) {
+            if (nativeSession === session) mutableState.value = block(mutableState.value)
         }
     }
 

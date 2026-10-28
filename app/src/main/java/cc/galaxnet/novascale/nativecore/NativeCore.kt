@@ -7,6 +7,7 @@
 package cc.galaxnet.novascale.nativecore
 
 import android.util.Base64
+import cc.galaxnet.novascale.core.TerminalSnapshotDecoder
 import cc.galaxnet.novascale.core.GhosttySnapshotParser
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
 import java.util.UUID
@@ -24,7 +25,9 @@ internal object NativeCore {
     @JvmStatic external fun nativePollEvent(sessionId: Long, timeoutMs: Int): String
     @JvmStatic external fun nativeSendCommand(sessionId: Long, command: String): Boolean
     @JvmStatic external fun nativeSnapshot(sessionId: Long): ByteArray
+    @JvmStatic external fun nativeSnapshotWithImages(sessionId: Long, imageRevision: Long): ByteArray
     @JvmStatic external fun nativeTerminalProbe(): ByteArray
+    @JvmStatic external fun nativeTerminalGraphicsProbe(commands: String, scroll: Int): ByteArray
     @JvmStatic external fun nativeRelease(sessionId: Long)
 }
 
@@ -93,6 +96,7 @@ internal data class NativeTerminalTheme(
 }
 
 internal class NativeSession private constructor(val id: Long) : AutoCloseable {
+    private val snapshotDecoder = TerminalSnapshotDecoder()
     fun pollEvent(timeoutMs: Int = 1_000): NativeEvent? {
         val raw = NativeCore.nativePollEvent(id, timeoutMs)
         return raw.takeIf(String::isNotEmpty)?.let(::NativeEvent)
@@ -104,11 +108,13 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
             .put("base64", Base64.encodeToString(value, Base64.NO_WRAP)),
     )
 
-    fun resize(columns: Int, rows: Int): Boolean = send(
+    fun resize(columns: Int, rows: Int, cellWidth: Int = 8, cellHeight: Int = 16): Boolean = send(
         JSONObject()
             .put("type", "resize")
             .put("columns", columns)
-            .put("rows", rows),
+            .put("rows", rows)
+            .put("cell_width", cellWidth)
+            .put("cell_height", cellHeight),
     )
 
     fun scrollTerminal(rows: Int): Boolean = send(
@@ -127,7 +133,7 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
     )
 
     fun terminalSnapshot(): TerminalRenderSnapshot =
-        GhosttySnapshotParser.parse(NativeCore.nativeSnapshot(id))
+        snapshotDecoder.parse(NativeCore.nativeSnapshotWithImages(id, snapshotDecoder.imageRevision))
 
     fun list(path: String, requestId: String = UUID.randomUUID().toString()): String {
         check(send(

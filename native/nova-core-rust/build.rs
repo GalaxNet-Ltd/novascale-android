@@ -10,6 +10,8 @@ fn main() {
     }
     let directory = std::env::var("NOVA_GHOSTTY_LIB_DIR")
         .expect("NOVA_GHOSTTY_LIB_DIR is required by the ghostty feature");
+    // Zig changes must invalidate Cargo's link step even when the directory is unchanged.
+    println!("cargo:rerun-if-changed={directory}/libnova_ghostty.a");
     println!("cargo:rustc-link-search=native={directory}");
     println!("cargo:rustc-link-lib=static=nova_ghostty");
 }

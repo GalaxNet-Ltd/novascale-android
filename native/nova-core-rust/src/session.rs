@@ -89,11 +89,11 @@ impl SessionEntry {
         self.commands.blocking_send(command).is_ok()
     }
 
-    pub fn snapshot_bytes(&self) -> Vec<u8> {
+    pub fn snapshot_bytes(&self, image_revision: u64) -> Vec<u8> {
         self.terminal
             .lock()
             .expect("terminal state poisoned")
-            .snapshot_bytes()
+            .snapshot_bytes_since(image_revision)
     }
 
     pub fn close(&self) {
@@ -373,13 +373,13 @@ async fn run_shell(
                         channel.data(&data[..]).await.map_err(|_| SessionError::Channel)?;
                     }
                 }
-                Command::Resize { columns, rows }
+                Command::Resize { columns, rows, cell_width, cell_height }
                     if (20..=500).contains(&columns) && (5..=300).contains(&rows) => {
-                        channel.window_change(columns, rows, 0, 0).await
+                        channel.window_change(columns, rows, columns * cell_width.clamp(1, 512), rows * cell_height.clamp(1, 512)).await
                             .map_err(|_| SessionError::Channel)?;
                         let replies = {
                             let mut terminal = terminal.lock().expect("terminal state poisoned");
-                            terminal.resize(columns, rows);
+                            terminal.resize_with_metrics(columns, rows, cell_width.clamp(1, 512), cell_height.clamp(1, 512));
                             terminal.drain_pty_writes()
                         };
                         if !replies.is_empty() {

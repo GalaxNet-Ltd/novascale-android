@@ -107,8 +107,8 @@ fills from reappearing in browser controls and dialogs.
 - Host platform marks are the deliberate exception: their white artwork sits
   on a solid or gradient platform tile so operating-system identity remains
   recognizable at a glance.
-- Terminal accessory icons use transparent key surfaces, a neutral
-  theme-derived border, and separate semantic foregrounds.
+- Terminal accessory icons use transparent key surfaces and separate semantic
+  foregrounds; the navigation icon stays unboxed until a drag is active.
 
 ### Home and host rows
 
@@ -153,10 +153,17 @@ fills from reappearing in browser controls and dialogs.
 - Multiple tabs use stable user-visible names. Tap selects; long-press opens
   rename and close actions without permanently spending tab width on close
   icons.
-- Baseline accessory keys: Esc, Ctl, Alt, Tab, arrows, paste, and a toggleable
-  symbol row. Ctl and Alt are one-shot modifiers and visibly selected. The
-  keyboard/accessory-hide control stays fixed at the trailing edge while the
-  terminal keys scroll independently.
+- Both accessory rows remain visible while input is expanded. The primary row
+  contains session actions, Esc, Ctl, Alt, Tab, navigation, and paste. Compact
+  windows use a compact navigation icon with direction feedback, hold-to-repeat, and
+  tap-to-open discrete arrows; windows at least 600 dp wide show separate arrows.
+  The second row pins Shift and bracketed-paste newline at the leading edge and
+  keyboard/accessory hide at the trailing edge. Only symbols and F1–F12 scroll
+  between those fixed controls. Modifiers invert their colors while selected
+  and apply once across accessory, IME, and hardware input.
+  Rows are 36 dp high, key labels use 12 sp medium system text, and icons use
+  16 dp artwork. The compact navigation target is 34 × 36 dp without a ring;
+  discrete arrow choices retain 48 dp height. Font scaling remains enabled.
 - Terminal chrome follows the active terminal palette; controls use transparent
   or subtly tinted surfaces so content remains dominant.
 

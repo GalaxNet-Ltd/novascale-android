@@ -24,6 +24,13 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** No tailnet credentials or external network required. Exercises the installed WebView. */
 class ProxyInstrumentation : Instrumentation() {
+    private var liveRetryHost = ""
+    private var accessoryOnly = false
+    private var sshRetryOnly = false
+    private var sshPort = 0
+    private var sshFingerprint = ""
+    private var graphicsOnly = false
+    private var keyboardOnly = false
     private var mouseOnly = false
     private var uiOnly = false
     private var darkUi = false
@@ -31,14 +38,27 @@ class ProxyInstrumentation : Instrumentation() {
     private var authOnly = false
     private var homeOnly = false
     private var detailsOnly = false
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); authOnly = arguments?.getString("suite") == "auth"; homeOnly = arguments?.getString("suite") == "home"; detailsOnly = arguments?.getString("suite") == "details"; insetsOnly = arguments?.getString("suite") == "insets"; mouseOnly = arguments?.getString("suite") == "mouse"; uiOnly = arguments?.getString("suite") in listOf("ui", "ui-dark"); darkUi = arguments?.getString("suite") == "ui-dark"; start() }
+    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); liveRetryHost = if (arguments?.getString("suite") == "ssh-retry-live") arguments.getString("host").orEmpty() else ""; accessoryOnly = arguments?.getString("suite") == "accessory"; sshRetryOnly = arguments?.getString("suite") == "ssh-retry"; sshPort = arguments?.getString("sshPort")?.toIntOrNull() ?: 0; sshFingerprint = arguments?.getString("sshFingerprint").orEmpty(); graphicsOnly = arguments?.getString("suite") == "graphics"; keyboardOnly = arguments?.getString("suite") == "keyboard"; authOnly = arguments?.getString("suite") == "auth"; homeOnly = arguments?.getString("suite") == "home"; detailsOnly = arguments?.getString("suite") == "details"; insetsOnly = arguments?.getString("suite") == "insets"; mouseOnly = arguments?.getString("suite") == "mouse"; uiOnly = arguments?.getString("suite") in listOf("ui", "ui-dark"); darkUi = arguments?.getString("suite") == "ui-dark"; start() }
     override fun onStart() {
         val result = Bundle()
         try {
             check(WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE))
             val activity = startActivitySync(Intent(targetContext, ProxyTestActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            runOnMainSync { activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             try {
-                if (authOnly) {
+                if (liveRetryHost.isNotEmpty()) {
+                    LiveSshRetryChecks.run(this, liveRetryHost)
+                } else if (accessoryOnly) {
+                    TerminalAccessoryChecks.run(this, activity as ProxyTestActivity)
+                } else if (sshRetryOnly) {
+                    check(sshPort > 0 && sshFingerprint.startsWith("SHA256:"))
+                    SshRetryChecks.run(this, sshPort, sshFingerprint)
+                } else if (graphicsOnly) {
+                    TerminalGraphicsChecks.run(this, activity as ProxyTestActivity)
+                } else if (keyboardOnly) {
+                    TerminalAccessoryChecks.run(this, activity as ProxyTestActivity)
+                    TerminalGestureChecks.run(this, activity)
+                } else if (authOnly) {
                     AuthUiChecks.run(this, activity as ProxyTestActivity)
                 } else if (homeOnly) {
                     HomeUiChecks.run(this, activity as ProxyTestActivity)
@@ -57,10 +77,10 @@ class ProxyInstrumentation : Instrumentation() {
                 exercise(activity, "http://fixture.invalid/page", false, hostOpen = true)
                 }
             } finally { runOnMainSync { activity.finish() } }
-            result.putString("stream", if (authOnly) "PASS: secure auth-key entry, pending/approval states, cancellation, browser handoff, connected completion.\n" else if (homeOnly) "PASS: onboarding navigation, Hosts/Sessions separation, signed-out login.\n" else if (detailsOnly) "PASS: local tailnet identity, logout transition and version details.\n" else if (insetsOnly) "PASS: edge-to-edge top bar and SSH password above IME.\n" else if (uiOnly) "PASS: host cards and SSH toolbar.\n" else if (mouseOnly) "PASS: native Ghostty mouse modes; confirmed tap, swipe wheel, hold-drag/cancel, two-finger right click, normal scrollback.\n" else "PASS: second-UID native proxy rejection; WebView authenticated HTTP and HTTPS CONNECT; manual Go, app navigation toggle, retained DOM/history/scroll across app sections, browser tabs, fullscreen cleanup; no tailnet login used.\n")
+            result.putString("stream", if (liveRetryHost.isNotEmpty()) "PASS: owner-host rejected wrong password then accepted saved credentials in the same runtime; saved profile unchanged.\n" else if (accessoryOnly) "PASS: compact accessory layout, modifiers, arrows and cancellation.\n" else if (sshRetryOnly) "PASS: real SSH password failure, Retry, corrected credentials in the same group/runtime and healthy reattachment.\n" else if (graphicsOnly) "PASS: native Kitty RGBA/PNG/zlib/chunks, crop/scale, replacement, clear/delete/reset, alternate screen, scrollback, malformed/oversized/local-transfer rejection and Canvas pixel rendering.\n" else if (keyboardOnly) "PASS: native keyboard modes; Shift, newline, tap/drag arrows, repeat, cancellation and tab disposal; IME/hardware input.\n" else if (authOnly) "PASS: secure auth-key entry, pending/approval states, cancellation, browser handoff, connected completion.\n" else if (homeOnly) "PASS: onboarding navigation, Hosts/Sessions separation, signed-out login.\n" else if (detailsOnly) "PASS: local tailnet identity, logout transition and version details.\n" else if (insetsOnly) "PASS: edge-to-edge top bar and SSH password above IME.\n" else if (uiOnly) "PASS: host cards and SSH toolbar.\n" else if (mouseOnly) "PASS: native Ghostty mouse modes; confirmed tap, swipe wheel, hold-drag/cancel, two-finger right click, normal scrollback.\n" else "PASS: second-UID native proxy rejection; WebView authenticated HTTP and HTTPS CONNECT; manual Go, app navigation toggle, retained DOM/history/scroll across app sections, browser tabs, fullscreen cleanup; no tailnet login used.\n")
             finish(Activity.RESULT_OK, result)
         } catch (error: Throwable) {
-            result.putString("stream", "FAIL: ${error.javaClass.simpleName}: ${error.message}\n")
+            result.putString("stream", "FAIL: ${error.javaClass.simpleName}: ${error.message} at ${error.stackTrace.firstOrNull()}\n")
             finish(Activity.RESULT_CANCELED, result)
         }
     }

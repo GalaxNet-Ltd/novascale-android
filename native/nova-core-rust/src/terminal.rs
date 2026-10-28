@@ -37,7 +37,8 @@ unsafe extern "C" {
     ) -> u64;
     fn nova_ghostty_take_clipboard(handle: usize, output: *mut u8, capacity: usize) -> usize;
     fn nova_ghostty_drain_pty(handle: usize, output: *mut u8, capacity: usize) -> usize;
-    fn nova_ghostty_snapshot(handle: usize, out_size: *mut usize) -> *const u8;
+    fn nova_ghostty_snapshot(handle: usize, known_revision: u64, out_size: *mut usize)
+    -> *const u8;
 }
 
 #[cfg(feature = "ghostty")]
@@ -59,7 +60,17 @@ impl TerminalState {
     }
 
     pub fn resize(&mut self, columns: u32, rows: u32) -> u64 {
-        unsafe { nova_ghostty_resize(self.handle, columns, rows, 1, 1) }
+        self.resize_with_metrics(columns, rows, 8, 16)
+    }
+
+    pub fn resize_with_metrics(
+        &mut self,
+        columns: u32,
+        rows: u32,
+        cell_width: u32,
+        cell_height: u32,
+    ) -> u64 {
+        unsafe { nova_ghostty_resize(self.handle, columns, rows, cell_width, cell_height) }
     }
 
     pub fn feed(&mut self, data: &[u8]) -> u64 {
@@ -109,8 +120,12 @@ impl TerminalState {
     }
 
     pub fn snapshot_bytes(&mut self) -> Vec<u8> {
+        self.snapshot_bytes_since(0)
+    }
+
+    pub fn snapshot_bytes_since(&mut self, known_revision: u64) -> Vec<u8> {
         let mut size = 0usize;
-        let pointer = unsafe { nova_ghostty_snapshot(self.handle, &mut size) };
+        let pointer = unsafe { nova_ghostty_snapshot(self.handle, known_revision, &mut size) };
         if pointer.is_null() || !(HEADER_BYTES..=32 * 1024 * 1024).contains(&size) {
             return Vec::new();
         }
@@ -140,6 +155,13 @@ pub struct TerminalState {
 
 #[cfg(not(feature = "ghostty"))]
 impl TerminalState {
+    pub fn snapshot_bytes_since(&mut self, _revision: u64) -> Vec<u8> {
+        self.snapshot_bytes()
+    }
+    pub fn resize_with_metrics(&mut self, columns: u32, rows: u32, _cw: u32, _ch: u32) -> u64 {
+        self.resize(columns, rows)
+    }
+
     pub fn new(columns: u32, rows: u32, _theme: Option<&TerminalThemeConfig>) -> Self {
         Self {
             columns,

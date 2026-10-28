@@ -77,6 +77,9 @@ pub fn build(b: *std.Build) void {
         .omit_frame_pointer = true,
     });
     module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
+    // Reuse the exact PNG decoder package pinned by Ghostty; no copied decoder.
+    const wuffs = ghostty.builder.lazyDependency("wuffs", .{ .target = target, .optimize = optimize }) orelse return;
+    module.addImport("wuffs", wuffs.module("wuffs"));
 
     const library = b.addLibrary(.{
         .linkage = .static,

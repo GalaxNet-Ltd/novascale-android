@@ -43,6 +43,10 @@ import android.view.inputmethod.InputMethodManager
 import cc.galaxnet.novascale.core.CursorShape
 import cc.galaxnet.novascale.core.TerminalCellPosition
 import cc.galaxnet.novascale.core.TerminalGlyphRun
+import cc.galaxnet.novascale.core.TerminalKeyModifiers
+import cc.galaxnet.novascale.core.terminalTextInput
+import cc.galaxnet.novascale.core.terminalNavigationInput
+import cc.galaxnet.novascale.core.terminalFunctionInput
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -72,11 +76,14 @@ class TerminalCanvasView @JvmOverloads constructor(
     private var cellWidth = 1f
     private var cellHeight = 1f
     private var baselineOffset = 1f
+    private var resizeToken: Any? = null
     private var lastColumns = 0
     private var lastRows = 0
     private val scrollAccumulator = TerminalScrollAccumulator()
     private var combiningAccent = 0
     private var inputListener: ((ByteArray) -> Unit)? = null
+    private val imageRenderer = TerminalImageRenderer(this)
+    private var resizePixelsListener: ((Int, Int, Int, Int) -> Unit)? = null
     private var resizeListener: ((columns: Int, rows: Int) -> Unit)? = null
     private var scrollListener: ((rows: Int) -> Unit)? = null
     private var modifiersConsumedListener: (() -> Unit)? = null
@@ -84,6 +91,7 @@ class TerminalCanvasView @JvmOverloads constructor(
     private var textSizeChangedListener: ((Float) -> Unit)? = null
     private var oneShotControl = false
     private var oneShotAlt = false
+    private var oneShotShift = false
     private var mouseButton: Int? = null
     private var mouseX = 0f
     private var mouseY = 0f
@@ -254,6 +262,7 @@ class TerminalCanvasView @JvmOverloads constructor(
             releaseMouse()
         }
         snapshot = value
+        imageRenderer.submit(value.images)
         selection = selection?.clampedTo(value)
         selectionActionMode?.invalidate()
         selectionActionMode?.invalidateContentRect()
@@ -266,17 +275,23 @@ class TerminalCanvasView @JvmOverloads constructor(
         onResize: ((columns: Int, rows: Int) -> Unit)?,
         onScroll: ((rows: Int) -> Unit)? = null,
         onModifiersConsumed: (() -> Unit)? = null,
+        onResizePixels: ((Int, Int, Int, Int) -> Unit)? = null,
+        resizeToken: Any? = null,
     ) {
         inputListener = onInput
         resizeListener = onResize
+        resizePixelsListener = onResizePixels
         scrollListener = onScroll
         modifiersConsumedListener = onModifiersConsumed
-        notifySizeIfChanged()
+        val newSession = this.resizeToken != resizeToken
+        this.resizeToken = resizeToken
+        notifySizeIfChanged(force = newSession)
     }
 
-    fun setOneShotModifiers(control: Boolean, alt: Boolean) {
+    fun setOneShotModifiers(control: Boolean, alt: Boolean, shift: Boolean = false) {
         oneShotControl = control
         oneShotAlt = alt
+        oneShotShift = shift
     }
 
     fun setWindowFocusGainedListener(listener: (() -> Unit)?) {
@@ -375,7 +390,7 @@ class TerminalCanvasView @JvmOverloads constructor(
         if (text.isNullOrEmpty()) return false
         consumeOneShotModifiers()
         val normalized = text.replace("\r\n", "\n").replace('\n', '\r')
-        val paste = if ((snapshot?.mouseFlags ?: 0) and 256 != 0) "\u001b[200~$normalized\u001b[201~" else normalized
+        val paste = if (snapshot?.bracketedPasteEnabled == true) "\u001b[200~$normalized\u001b[201~" else normalized
         emit(paste.toByteArray(Charsets.UTF_8))
         return true
     }
@@ -410,12 +425,12 @@ class TerminalCanvasView @JvmOverloads constructor(
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-                repeat(beforeLength.coerceAtMost(64)) { emit(byteArrayOf(0x7f)) }
+                repeat(beforeLength.coerceAtMost(64)) { emitText("\u007f") }
                 return true
             }
 
             override fun performEditorAction(actionCode: Int): Boolean {
-                emit(byteArrayOf('\r'.code.toByte()))
+                emitText("\r")
                 return true
             }
 
@@ -427,6 +442,7 @@ class TerminalCanvasView @JvmOverloads constructor(
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         specialKey(keyCode, event)?.let {
             emit(it)
+            if (oneShotModifiers().active) consumeOneShotModifiers()
             return true
         }
         val meta = event.metaState and (KeyEvent.META_SHIFT_MASK or KeyEvent.META_ALT_RIGHT_ON)
@@ -440,12 +456,13 @@ class TerminalCanvasView @JvmOverloads constructor(
             codepoint = KeyCharacterMap.getDeadChar(combiningAccent, codepoint).takeIf { it != 0 } ?: codepoint
             combiningAccent = 0
         }
-        val usesOneShotModifier = oneShotControl || oneShotAlt
-        val output = String(Character.toChars(controlCodepoint(codepoint, event.isCtrlPressed || oneShotControl)))
-            .toByteArray(Charsets.UTF_8)
-        val terminalAlt = oneShotAlt ||
-            (event.isAltPressed && event.metaState and KeyEvent.META_ALT_RIGHT_ON == 0)
-        emit(if (terminalAlt) byteArrayOf(0x1b) + output else output)
+        val usesOneShotModifier = oneShotModifiers().active
+        val modifiers = TerminalKeyModifiers(
+            control = event.isCtrlPressed || oneShotControl,
+            alt = oneShotAlt || (event.isAltPressed && event.metaState and KeyEvent.META_ALT_RIGHT_ON == 0),
+            shift = event.isShiftPressed || oneShotShift,
+        )
+        emit(terminalTextInput(String(Character.toChars(codepoint)), modifiers, snapshot?.keyboardEnhancementFlags ?: 0))
         if (usesOneShotModifier) consumeOneShotModifiers()
         return true
     }
@@ -534,9 +551,15 @@ class TerminalCanvasView @JvmOverloads constructor(
         notifySizeIfChanged()
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        snapshot?.let { imageRenderer.submit(it.images) }
+    }
+
     override fun onDetachedFromWindow() {
         releaseMouse()
         releaseTerminalInput()
+        imageRenderer.clear()
         super.onDetachedFromWindow()
     }
 
@@ -550,11 +573,20 @@ class TerminalCanvasView @JvmOverloads constructor(
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
         if (frame != null) {
             canvas.translate(paddingLeft.toFloat(), paddingTop.toFloat())
+            val graphicsClip = canvas.save()
+            canvas.clipRect(0f, 0f, frame.columns * cellWidth, frame.rowCount * cellHeight)
+            imageRenderer.draw(canvas, frame.images, cellWidth, cellHeight, Int.MIN_VALUE, -1073741825)
             for (row in frame.rows) {
                 val top = row.rowIndex * cellHeight
-                val baseline = top + baselineOffset
-                for (run in row.runs) drawRun(canvas, frame, run, top, baseline)
+                for (run in row.runs) drawRunBackground(canvas, frame, run, top)
             }
+            imageRenderer.draw(canvas, frame.images, cellWidth, cellHeight, -1073741824, -1)
+            for (row in frame.rows) {
+                val top = row.rowIndex * cellHeight
+                for (run in row.runs) drawRunText(canvas, run, top, top + baselineOffset)
+            }
+            imageRenderer.draw(canvas, frame.images, cellWidth, cellHeight, 0, Int.MAX_VALUE)
+            canvas.restoreToCount(graphicsClip)
             drawSelection(canvas, frame)
             frame.cursor?.takeIf { it.visible && selection == null }?.let { cursor ->
                 val left = cursor.column * cellWidth
@@ -579,12 +611,11 @@ class TerminalCanvasView @JvmOverloads constructor(
         canvas.restoreToCount(checkpoint)
     }
 
-    private fun drawRun(
+    private fun drawRunBackground(
         canvas: Canvas,
         frame: TerminalRenderSnapshot,
         run: TerminalGlyphRun,
         top: Float,
-        baseline: Float,
     ) {
         val left = run.startColumn * cellWidth
         val expectedWidth = run.columnCount * cellWidth
@@ -594,7 +625,6 @@ class TerminalCanvasView @JvmOverloads constructor(
             canvas.drawRect(left, top, left + expectedWidth, top + cellHeight, paint)
         }
 
-        drawRunText(canvas, run, top, baseline)
     }
 
     private fun drawRunText(
@@ -829,70 +859,65 @@ class TerminalCanvasView @JvmOverloads constructor(
         if (force || columns != lastColumns || rows != lastRows) {
             lastColumns = columns
             lastRows = rows
-            resizeListener?.invoke(columns, rows)
+            val pixels = resizePixelsListener
+            if (pixels != null) pixels(columns, rows, ceil(cellWidth.toDouble()).toInt(), ceil(cellHeight.toDouble()).toInt())
+            else resizeListener?.invoke(columns, rows)
         }
     }
 
     private fun specialKey(keyCode: Int, event: KeyEvent): ByteArray? {
-        val plain = when (keyCode) {
+        val modifiers = TerminalKeyModifiers(
+            control = event.isCtrlPressed || oneShotControl,
+            alt = event.isAltPressed || oneShotAlt,
+            shift = event.isShiftPressed || oneShotShift,
+        )
+        val suffix = when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> "A"
+            KeyEvent.KEYCODE_DPAD_DOWN -> "B"
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "C"
+            KeyEvent.KEYCODE_DPAD_LEFT -> "D"
+            KeyEvent.KEYCODE_MOVE_HOME -> "H"
+            KeyEvent.KEYCODE_MOVE_END -> "F"
+            else -> null
+        }
+        if (suffix != null) return terminalNavigationInput(suffix, modifiers)
+        if (keyCode in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F12) {
+            return terminalFunctionInput(keyCode - KeyEvent.KEYCODE_F1 + 1, modifiers)
+        }
+        val tildeCode = when (keyCode) {
+            KeyEvent.KEYCODE_INSERT -> 2
+            KeyEvent.KEYCODE_FORWARD_DEL -> 3
+            KeyEvent.KEYCODE_PAGE_UP -> 5
+            KeyEvent.KEYCODE_PAGE_DOWN -> 6
+            else -> null
+        }
+        if (tildeCode != null) {
+            val parameter = if (modifiers.active) ";${modifiers.parameter}" else ""
+            return "\u001b[$tildeCode$parameter~".toByteArray()
+        }
+        val text = when (keyCode) {
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> "\r"
             KeyEvent.KEYCODE_DEL -> "\u007f"
-            KeyEvent.KEYCODE_FORWARD_DEL -> "\u001b[3~"
-            KeyEvent.KEYCODE_TAB -> if (event.isShiftPressed) "\u001b[Z" else "\t"
+            KeyEvent.KEYCODE_TAB -> "\t"
             KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_BACK -> "\u001b"
-            KeyEvent.KEYCODE_INSERT -> "\u001b[2~"
-            KeyEvent.KEYCODE_MOVE_HOME -> "\u001b[H"
-            KeyEvent.KEYCODE_MOVE_END -> "\u001b[F"
-            KeyEvent.KEYCODE_PAGE_UP -> "\u001b[5~"
-            KeyEvent.KEYCODE_PAGE_DOWN -> "\u001b[6~"
-            KeyEvent.KEYCODE_F1 -> "\u001bOP"
-            KeyEvent.KEYCODE_F2 -> "\u001bOQ"
-            KeyEvent.KEYCODE_F3 -> "\u001bOR"
-            KeyEvent.KEYCODE_F4 -> "\u001bOS"
-            in KeyEvent.KEYCODE_F5..KeyEvent.KEYCODE_F12 -> functionKey(keyCode)
-            KeyEvent.KEYCODE_DPAD_UP -> modifiedCsi("A", event)
-            KeyEvent.KEYCODE_DPAD_DOWN -> modifiedCsi("B", event)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> modifiedCsi("C", event)
-            KeyEvent.KEYCODE_DPAD_LEFT -> modifiedCsi("D", event)
             else -> return null
         }
-        return plain.toByteArray(Charsets.UTF_8)
+        return terminalTextInput(text, modifiers, snapshot?.keyboardEnhancementFlags ?: 0)
     }
 
-    private fun modifiedCsi(suffix: String, event: KeyEvent): String {
-        var modifier = 1
-        if (event.isShiftPressed) modifier += 1
-        if (event.isAltPressed) modifier += 2
-        if (event.isCtrlPressed) modifier += 4
-        return if (modifier == 1) "\u001b[$suffix" else "\u001b[1;${modifier}$suffix"
-    }
-
-    private fun functionKey(keyCode: Int): String {
-        val number = intArrayOf(15, 17, 18, 19, 20, 21, 23, 24)[keyCode - KeyEvent.KEYCODE_F5]
-        return "\u001b[${number}~"
-    }
+    private fun oneShotModifiers() = TerminalKeyModifiers(oneShotControl, oneShotAlt, oneShotShift)
 
     private fun emitText(value: CharSequence) {
-        val normalized = buildString {
-            value.codePoints().forEach { appendCodePoint(if (it == '\n'.code) '\r'.code else it) }
-        }
-        val usesOneShotModifier = oneShotControl || oneShotAlt
-        var output = if (oneShotControl && normalized.isNotEmpty()) {
-            val firstCodepoint = normalized.codePointAt(0)
-            val firstLength = Character.charCount(firstCodepoint)
-            String(Character.toChars(controlCodepoint(firstCodepoint, control = true))).toByteArray(Charsets.UTF_8) +
-                normalized.substring(firstLength).toByteArray(Charsets.UTF_8)
-        } else {
-            normalized.toByteArray(Charsets.UTF_8)
-        }
-        if (oneShotAlt) output = byteArrayOf(0x1b) + output
-        emit(output)
-        if (usesOneShotModifier) consumeOneShotModifiers()
+        if (value.isEmpty()) return
+        val modifiers = oneShotModifiers()
+        emit(terminalTextInput(value.toString(), modifiers, snapshot?.keyboardEnhancementFlags ?: 0))
+        if (modifiers.active) consumeOneShotModifiers()
     }
 
     private fun consumeOneShotModifiers() {
         oneShotControl = false
         oneShotAlt = false
+        oneShotShift = false
         modifiersConsumedListener?.invoke()
     }
 
@@ -915,22 +940,6 @@ class TerminalCanvasView @JvmOverloads constructor(
                     device.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC &&
                     device.supportsSource(InputDevice.SOURCE_KEYBOARD)
             }
-    }
-
-    private fun controlCodepoint(codepoint: Int, control: Boolean): Int {
-        if (!control) return codepoint
-        return when (codepoint) {
-            ' '.code, '@'.code -> 0
-            in 'a'.code..'z'.code -> codepoint - 'a'.code + 1
-            in 'A'.code..'Z'.code -> codepoint - 'A'.code + 1
-            '['.code -> 27
-            '\\'.code -> 28
-            ']'.code -> 29
-            '^'.code -> 30
-            '_'.code -> 31
-            '?'.code -> 127
-            else -> codepoint
-        }
     }
 
     private fun dim(color: Int): Int = Color.rgb(

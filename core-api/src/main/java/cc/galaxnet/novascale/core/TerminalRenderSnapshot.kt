@@ -15,7 +15,12 @@ data class TerminalRenderSnapshot(
     val defaultForegroundArgb: Int = 0xFFE6EDF3.toInt(),
     val defaultBackgroundArgb: Int = 0xFF0D1117.toInt(),
     val mouseFlags: Int = 0,
+    val images: List<TerminalImagePlacement> = emptyList(),
 ) {
+    /** Mode bits from Ghostty's active screen; no escape-sequence parsing in the UI. */
+    val bracketedPasteEnabled: Boolean get() = mouseFlags and 256 != 0
+    val keyboardEnhancementFlags: Int get() = (mouseFlags ushr 9) and 31
+
     init {
         require(columns > 0)
         require(rowCount > 0)
@@ -190,7 +195,7 @@ object GhosttySnapshotParser {
     private const val FLAG_GRAPHEME = 1 shl 6
     private const val FLAG_SPACER = 1 shl 7
 
-    fun parse(bytes: ByteArray): TerminalRenderSnapshot {
+    fun parse(bytes: ByteArray, decoder: TerminalSnapshotDecoder = TerminalSnapshotDecoder()): TerminalRenderSnapshot {
         require(bytes.size >= HEADER_BYTES) { "Terminal snapshot header is truncated" }
         val buffer = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         val columns = buffer.getInt(0)
@@ -199,7 +204,11 @@ object GhosttySnapshotParser {
         val cellsEnd = HEADER_BYTES.toLong() + columns.toLong() * rows * CELL_BYTES
         require(cellsEnd <= bytes.size) { "Terminal snapshot cells are truncated" }
         val extrasOffset = buffer.getInt(44)
+        require(extrasOffset == 0 || extrasOffset == cellsEnd.toInt()) { "Invalid extras boundary" }
         val extras = parseExtras(buffer, extrasOffset, columns * rows)
+        val graphicsOffset = if (extrasOffset == 0) cellsEnd.toInt() else
+            extrasOffset + 4 + extras.values.sumOf { 8 + it.size * 4 }
+        val images = if (buffer.getInt(52) and (1 shl 14) != 0) decoder.parseImages(buffer, graphicsOffset) else emptyList()
         val defaultBackground = argb(buffer.getInt(20), buffer.getInt(24), buffer.getInt(28))
         val defaultForeground = argb(buffer.getInt(32), buffer.getInt(36), buffer.getInt(40))
 
@@ -286,6 +295,7 @@ object GhosttySnapshotParser {
             defaultForegroundArgb = defaultForeground,
             defaultBackgroundArgb = defaultBackground,
             mouseFlags = buffer.getInt(52),
+            images = images,
         )
     }
 
@@ -312,6 +322,7 @@ object GhosttySnapshotParser {
                 require(cursor.toLong() + count.toLong() * Int.SIZE_BYTES <= buffer.limit()) {
                     "Terminal grapheme data is truncated"
                 }
+                require(cell !in this) { "Duplicate grapheme record" }
                 put(cell, IntArray(count) { buffer.getInt(cursor + it * Int.SIZE_BYTES) })
                 cursor += count * Int.SIZE_BYTES
             }

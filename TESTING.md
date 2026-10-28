@@ -55,7 +55,7 @@ NovaScale runs one app-scoped userspace node. It does not install a VPN and does
 9. On the first connection, compare the displayed SHA-256 host-key fingerprint with a trusted source before accepting it.
 10. Confirm a shell appears at a readable default size. Test typing, Enter, Backspace, Unicode, pinch sizing, rotation, and resize. Run `seq 1 200`; drag downward in the terminal to reveal older numbered lines, then type one character and confirm the viewport automatically returns to line 200 and the active prompt. Scroll again and drag upward to return manually. Repeat with a mouse or trackpad wheel where available. Scrolling must move Ghostty's retained viewport without printing arrow-key escape input or moving terminal content behind the accessory row.
 11. Open **Settings → Terminal appearance**. Exercise all five built-in palettes, all five font choices, sizes from 8–32 sp, and Application/Block/Beam/Underline cursor choices; the preview must update immediately. Application must honor cursor-shape requests from terminal programs, while each fixed choice must retain its selected rendered shape without making a natively hidden cursor visible. Import a normal `.itermcolors` preset through the document picker (`testdata/terminal/NovaScale-Test.itermcolors` is a non-sensitive fixture) and confirm it becomes selected; malformed, entity-bearing, XInclude-bearing, and larger-than-512-KiB files must be rejected. Restart NovaScale and confirm the selected theme, font, size, and cursor shape persist. Reopen the shell and confirm palette changes reach ANSI output, the title/status area, multi-tab strip, accessory keyboard, and system bars rather than only the preview; light palettes must use dark system icons, dark palettes must use light icons, and pinch sizing must update the Settings value.
-12. Exercise the accessory row: **Detach** (arrow leaving a square), **Close**, **Esc**, **Ctl**, **Alt**, **Tab**, all arrows, **Paste**, symbol-row toggle, and symbols. The session actions must be the first two visible controls. Confirm Ctl/Alt are visibly selected and apply once to either an accessory key or the next IME character.
+12. Exercise the two accessory rows: **Detach** (arrow leaving a square), **Close**, **Esc**, **Ctl**, **Alt**, **Tab**, navigation, and **Paste**; fixed **Shift** and **Insert newline**, scrolling symbols/F1–F12, and fixed **Hide keyboard** below. On a compact screen, drag the compact navigation icon in each direction and hold to repeat; returning to its center, release, cancellation, backgrounding, and switching tabs must stop repeat. Tap the navigation icon for discrete arrow buttons. At widths of at least 600 dp, separate arrows replace the pad. Confirm Ctrl/Alt/Shift are visibly selected, apply once to an accessory key or IME/hardware input, then clear. Test Shift+Tab and Shift+arrows in Codex and other remote TUIs, including negotiated Kitty keyboard mode. Insert newline is enabled only when the remote program enables bracketed paste; it must insert a line without submitting the prompt. Symbols scroll independently of Shift, newline, and Hide keyboard.
 13. Review Home, Host Detail, Settings, Terminal connection/loading, Files, and file Preview in light and dark mode. Ordinary icons must use transparent or neutral surfaces instead of a same-hue translucent background; selected bottom navigation must use Primary with no selection pill; filled icon controls must use a contrasting foreground. Host platform tiles remain the only colored icon tiles in ordinary list rows.
 14. Add, switch, and close terminal tabs with **+** and **×**. Android terminal tabs are free in the initial release; the MVP caps a host group at six and uses an independent SSH connection for each tab.
 15. Change the server host key in a disposable environment and confirm NovaScale blocks it and identifies the saved fingerprint as changed.
@@ -72,6 +72,32 @@ Detach is process-local session retention, not serialization. A force-stop,
 process kill, reboot, or OS process reclamation destroys live sockets. Durable
 shell continuity after that boundary requires reconnecting, preferably to a
 server-side session such as `tmux`.
+
+### Kitty terminal graphics
+
+After installing both debug APKs, run the no-login fixture:
+
+```sh
+adb shell am instrument -w -e suite graphics cc.galaxnet.novascale.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+It exercises the packaged Ghostty/Wuffs decoder, fragmented APC input,
+RGB/RGBA/PNG, zlib/chunking, Unicode placeholders, crop/scale/z metadata,
+image-ID replacement, ED2/delete/reset, alternate-screen isolation/restoration,
+scrollback visibility, malformed/oversized/local-file rejection, decompression
+limits and recovery, and Android Canvas pixels including alpha and stale-image
+cleanup. It also verifies unchanged native snapshots omit image payloads.
+
+For a real SSH session, copy `testdata/terminal/kitty-smoke.py` to a disposable
+host and run it with Python 3. Test its PNG, RGBA and zlib options. Then run
+`clear`, enter/exit Vim, scroll history, rotate, resize and change terminal fonts.
+Use the inherited `TERM=xterm-256color`; a host overriding TERM to `linux` emits
+different clear/alternate-screen sequences. Repeat with `kitten icat` over SSH
+using direct transfer (`--transfer-mode=stream` where supported), and with tmux
+Unicode placeholders. Check a transparent PNG, repeated image IDs and a larger
+image below 8 MiB decoded. Source the local terminal helper's own `--help` for
+its exact available flags. Physical ARM64, the full API/page-size matrix and
+live tmux/tool integration remain device acceptance checks.
 
 ## 4. SFTP
 
@@ -159,6 +185,14 @@ Run the no-login native/Android gesture fixture after installing both debug APKs
 adb shell am instrument -w -e suite mouse cc.galaxnet.novascale.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
 ```
 
+For the accessory keyboard, run `-e suite keyboard` with the same runner. This
+includes the mouse/clipboard regression fixture and checks native keyboard-mode
+push/pop, alternate-screen isolation and reset, legacy/enhanced Shift+Tab,
+bracketed newline, discrete arrows, drag direction/repeat/dead-zone, cancellation,
+tab disposal, simulated lifecycle suspension, and one-shot Shift through IME and hardware input. It uses synthetic
+text with no SSH login. Live Codex interaction and physical touch ergonomics
+remain device acceptance checks.
+
 This checks actual Ghostty DECSET/DECRST/reset mode snapshots, Android tap-to-SGR
 click, one-finger swipe-to-wheel, hold-and-drag with cancellation/release, two-finger right-click,
 and local scrollback with reporting disabled. Pure unit tests cover SGR button,
@@ -235,3 +269,26 @@ enter fullscreen, rotate, exit/back, and background/return. Verify no detached
 video view or hidden controls. Test both themes, Chinese fallback, 1.5–2x system
 font size, TalkBack, and a narrow/split-screen window. App text uses JetBrains
 Mono; terminal/editor preferences and website typography retain their own fonts.
+
+
+### SSH password retry regression
+
+The `ssh-retry` instrumentation suite exercises actual Rust SSH authentication
+through a local-only fixture. Start `python3 testdata/terminal/ssh-retry-server.py`
+(Paramiko is needed on the development host), reverse an unused device TCP port
+to the reported loopback port with `adb reverse`, then pass `-e sshPort PORT` and
+`-e sshFingerprint SHA256:...` to the existing instrumentation runner with
+`-e suite ssh-retry`. It checks wrong-password failure, repeated Retry, corrected
+credentials in the same group/runtime, and healthy reattachment without a new
+connection. The fixture uses synthetic credentials and restores its known-host
+entry on exit.
+
+For an explicitly authorized owner-device check only, `-e suite ssh-retry-live
+-e host HOST_NAME` uses the existing shared tailnet and in-process saved password.
+It deliberately tries one wrong password, then uses the saved correct profile
+in the same runtime. It requires an already trusted host key and never changes
+saved credentials or logs them. App installation/instrumentation restarts active
+terminal connections; use a disposable shell. The `accessory` suite checks only
+the compact keyboard, at 339 dp and 1.15 font scale, without changing clipboard
+contents. It verifies every primary key fits, compact height, Shift, arrow
+navigation/repeat, cancellation and lifecycle suspension.
