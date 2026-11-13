@@ -32,6 +32,10 @@ val tailscaleVersion = Regex("""(?m)^\s*tailscale\.com\s+(v\S+)""")
     ?.groupValues?.get(1) ?: error("Missing pinned tailscale.com module version")
 val privacyPolicyUrl = "https://galaxnet.dev/nova/legal/privacy/"
 val termsOfServiceUrl = "https://galaxnet.dev/nova/legal/tos/"
+// Play Console's PUBLIC licensing key, not a service-account/private signing credential.
+val billingPublicKey = providers.gradleProperty("NOVASCALE_PLAY_BILLING_PUBLIC_KEY")
+    .orElse(providers.environmentVariable("NOVASCALE_PLAY_BILLING_PUBLIC_KEY")).orElse("")
+    .map { it.filterNot(Char::isWhitespace) }.get()
 val uploadStorePath = providers.environmentVariable("NOVASCALE_UPLOAD_STORE_FILE").orNull
 val uploadStorePassword = providers.environmentVariable("NOVASCALE_UPLOAD_STORE_PASSWORD").orNull
 val uploadKeyAlias = providers.environmentVariable("NOVASCALE_UPLOAD_KEY_ALIAS").orNull
@@ -51,7 +55,7 @@ val syncLegalAssets by tasks.registering(Sync::class) {
     group = "distribution"
     description = "Package the application license and third-party notice inventory"
     from(rootProject.file("LICENSE")) {
-        rename { "GPL-3.0-only.txt" }
+        rename { "Apache-2.0.txt" }
     }
     from(rootProject.file("THIRD_PARTY_NOTICES.md"))
     into(generatedLegalAssets.map { it.dir("legal") })
@@ -98,7 +102,7 @@ val buildRustCore by tasks.registering(Exec::class) {
         exclude("target/**")
     })
     inputs.files(rootProject.fileTree("native/nova-ghostty-zig") {
-        exclude(".tools/**", ".zig-cache/**", "zig-out/**")
+        exclude(".tools/**", ".zig-cache/**", "zig-out/**", "zig-pkg/**")
     })
     inputs.file(rootProject.file("scripts/build-rust-core.sh"))
     inputs.file(rootProject.file("scripts/ensure-zig.sh"))
@@ -120,10 +124,16 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments["room.schemaLocation"] = "$projectDir/schemas"
+            }
+        }
         buildConfigField("String", "TAILSCALE_VERSION", tailscaleVersion.asBuildConfigString())
         buildConfigField("String", "PRIVACY_POLICY_URL", privacyPolicyUrl.asBuildConfigString())
         buildConfigField("String", "TERMS_OF_SERVICE_URL", termsOfServiceUrl.asBuildConfigString())
         buildConfigField("String", "SOURCE_CODE_URL", sourceCodeUrl.asBuildConfigString())
+        buildConfigField("String", "PLAY_BILLING_PUBLIC_KEY", billingPublicKey.asBuildConfigString())
         ndk {
             abiFilters += setOf("arm64-v8a", "x86_64")
         }
@@ -140,7 +150,21 @@ android {
         }
     }
 
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("community") {
+            dimension = "distribution"
+            applicationIdSuffix = ".community"
+            buildConfigField("boolean", "COMMUNITY_BUILD", "true")
+        }
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("boolean", "COMMUNITY_BUILD", "false")
+        }
+    }
+
     buildTypes {
+        debug { applicationIdSuffix = ".debug" }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -215,14 +239,44 @@ val validatePlayRelease by tasks.registering {
 tasks.register("playReleaseBundle") {
     group = "distribution"
     description = "Validate release metadata/signing and build the Play upload AAB"
-    dependsOn(validatePlayRelease, "bundleRelease")
+    dependsOn(validatePlayRelease, "bundlePlayRelease")
 }
 
-tasks.matching { it.name == "bundleRelease" }.configureEach {
+tasks.matching { it.name == "bundlePlayRelease" }.configureEach {
     mustRunAfter(validatePlayRelease)
 }
 
+// Checks the source boundary documented in third_party/play-billing and third_party/lgpl.
+// Dependency pin/license changes still require updating that distribution record.
+val validatePlayBillingDistribution by tasks.registering {
+    group = "verification"
+    doLast {
+        check(rootProject.file("LICENSE").readText().contains("Apache License")) { "NovaScale's distribution license record is inconsistent" }
+        check(libs.google.play.billing.get().versionConstraint.requiredVersion == "9.1.0") { "Review the new Play SDK license/pin before distribution" }
+        val terminalSources = rootProject.file("terminal-ui/src/main").walkTopDown().filter { it.isFile && it.extension in setOf("kt", "java") }.toList()
+        check(terminalSources.isNotEmpty() && terminalSources.all { it.readText().contains("SPDX-License-Identifier: Apache-2.0") }) {
+            "The independent terminal implementation must retain its reviewed source license"
+        }
+        check(terminalSources.none { it.name == "TerminalCanvasView.kt" || it.readText().contains("com.termux") }) { "The historical Termux implementation must not return to the runtime" }
+        val modules = configurations.getByName("playReleaseRuntimeClasspath").incoming.resolutionResult.allComponents
+            .mapNotNull { it.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+        check(modules.none { it.group.startsWith("com.termux") }) { "Termux is not part of this distribution's licensing basis" }
+        val lgpl = rootProject.file("third_party/LGPL-2.1.txt").readText()
+        check(rootProject.file("THIRD_PARTY_NOTICES.md").readText().contains(lgpl.trimEnd())) { "The packaged LGPL license is missing" }
+        check(rootProject.file("third_party/lgpl/README.md").isFile && rootProject.file("scripts/local-lgpl.init.gradle").isFile) {
+            "The LGPL source/relinking instructions are missing"
+        }
+    }
+}
+tasks.matching {
+    it.name.contains("PlayRelease") &&
+        (it.name.startsWith("package") || it.name.startsWith("sign") || it.name in setOf("bundlePlayRelease", "assemblePlayRelease"))
+}.configureEach {
+    dependsOn(validatePlayBillingDistribution)
+}
+
 dependencies {
+    "playImplementation"(libs.google.play.billing)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(project(":core-api"))
     implementation(project(":terminal-ui"))
@@ -236,6 +290,8 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.webkit)
     implementation(libs.kotlinx.coroutines.android)
+    implementation("androidx.room:room-runtime:2.8.5")
+    annotationProcessor("androidx.room:room-compiler:2.8.5")
 
     implementation(platform(libs.sora.editor.bom))
     implementation(libs.sora.editor)
@@ -259,4 +315,5 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation("org.json:json:20250517")
 }

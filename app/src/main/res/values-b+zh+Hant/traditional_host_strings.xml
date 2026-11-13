@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="traditional_host_add">加入主機</string>
+    <string name="traditional_host_name">名稱</string>
+    <string name="traditional_host_edit">編輯主機</string>
+    <string name="traditional_network_path">網路路徑</string>
+    <string name="traditional_direct">直接連線</string>
+    <string name="traditional_tailnet">透過 Tailscale</string>
+    <string name="traditional_direct_help">透過網際網路或本機網路連線。</string>
+    <string name="traditional_tailnet_help">透過 Tailscale 網路連線。</string>
+    <string name="traditional_host_save_error">請檢查主機資訊後重試。</string>
+    <string name="traditional_host_load_error">無法載入已儲存的 SSH 設定。</string>
+    <string name="traditional_delete_title">刪除主機？</string>
+    <string name="traditional_delete_description">刪除 %1$s 及其儲存的 SSH 憑證？</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="herdr_title">Herdr 遠端</string>
+    <string name="herdr_detach">暫時離開</string>
+    <string name="herdr_close">關閉</string>
+    <string name="herdr_choose_session">選擇 Herdr 工作階段</string>
+    <string name="herdr_default_session">預設</string>
+    <string name="herdr_session_name">新工作階段名稱</string>
+    <string name="herdr_open_session">開啟工作階段</string>
+    <string name="herdr_retry">重試</string>
+    <string name="herdr_input_stale">傳送輸入前畫面發生變化，請重試。</string>
+</resources>

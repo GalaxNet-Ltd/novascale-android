@@ -394,12 +394,12 @@
     <string name="terms_of_service_description">使用 NovaScale 的條款</string>
     <string name="source_code">對應原始碼</string>
     <string name="application_license">應用程式許可證</string>
-    <string name="application_license_description">僅 GNU GPL 第 3 版</string>
+    <string name="application_license_description">Apache 授權條款 2.0</string>
     <string name="third_party_notices">第三方聲明</string>
     <string name="third_party_notices_description">元件、原始碼版本、許可證和署名</string>
     <string name="legal_link_unavailable">沒有可用於開啟此安全網頁連結的應用程式。</string>
     <string name="legal_document_load_failed">無法載入應用程式內含的法律文件。</string>
-    <string name="source_license">僅依據 GNU GPL 第 3 版授權。</string>
+    <string name="source_license">依據 Apache 授權條款 2.0 授權。</string>
     <string name="source_application_id">應用 ID：%1$s</string>
     <string name="source_rust_core">Rust 核心 %1$s · russh %2$s · russh-sftp %3$s · Ghostty %4$s</string>
     <string name="source_rust_unavailable">無法使用 Rust 核心</string>
@@ -436,7 +436,7 @@
     <string name="browser_url_label">內部 HTTP 或 HTTPS URL</string>
     <string name="browser_url_example">範例：https://grafana.example.ts.net</string>
     <string name="browser_proxy_unsupported">此裝置的 WebView 不支援程式層級的 Proxy 覆寫。</string>
-    <string name="browser_proxy_starting">正在啟動限定來源的 Tailnet Proxy…</string>
+    <string name="browser_proxy_starting">正在啟動本機代理…</string>
     <string name="browser_proxy_active">Proxy 僅對 %1$s:%2$d 生效</string>
     <string name="browser_proxy_revoked">瀏覽器 Proxy 已撤銷。WebView 流量無法再使用 Tailnet。</string>
     <string name="browser_invalid_url">請輸入有效的 HTTP 或 HTTPS URL</string>

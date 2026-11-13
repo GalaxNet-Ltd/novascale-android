@@ -1,7 +1,7 @@
 // NovaScale for Android
 // Copyright (C) 2026 NovaScale contributors
 //
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 //
 // The JSON schema and conversion approach are adapted from
 // tailscale/tailscale-android libtailscale/ifaceparse (BSD-3-Clause).

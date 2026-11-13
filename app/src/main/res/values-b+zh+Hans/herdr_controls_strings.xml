@@ -1,0 +1,28 @@
+<resources>
+    <string name="herdr_restoring">正在恢复连接…</string>
+    <string name="herdr_recovery_failed">无法恢复连接，请尝试重新连接。</string>
+    <string name="herdr_agents">智能体</string>
+    <string name="herdr_agents_empty">此会话中没有智能体。使用标签页或工作区打开终端。</string>
+    <string name="herdr_agent_working">工作中</string>
+    <string name="herdr_agent_attention">需要关注</string>
+    <string name="herdr_agent_idle">空闲</string>
+    <string name="herdr_agent_done">已完成</string>
+    <string name="herdr_agent_unknown">未知</string>
+    <string name="herdr_selected">已选择</string>
+    <string name="herdr_workspaces">工作区</string>
+    <string name="herdr_workspace_new">新建工作区</string>
+    <string name="herdr_tab_new">新建标签页</string>
+    <string name="herdr_tab_options">标签页 %1$s 的选项</string>
+    <string name="herdr_tab_rename">重命名标签页</string>
+    <string name="herdr_tab_name">标签页名称</string>
+    <string name="herdr_tab_close">关闭标签页</string>
+    <string name="herdr_tab_close_named">关闭标签页“%1$s”？</string>
+    <string name="herdr_tab_close_help">关闭此标签页将终止其远程 Shell 和进程。</string>
+    <string name="herdr_tab_close_last_help">这是工作区中的最后一个标签页。关闭它也会关闭工作区，并终止其远程 Shell 和进程。</string>
+    <string name="herdr_actions">Herdr 操作</string>
+    <string name="herdr_action_error">操作未完成</string>
+    <string name="herdr_action_unknown">服务器未确认结果。请重新连接并检查状态，然后再试。</string>
+    <string name="herdr_action_stale">会话已变化，请重新选择目标。</string>
+    <string name="herdr_action_unsupported">此服务器不支持该操作。</string>
+    <string name="herdr_action_refused">服务器拒绝了操作，连接仍然保持。</string>
+</resources>

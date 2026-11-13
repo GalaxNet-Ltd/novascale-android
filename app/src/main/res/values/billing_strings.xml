@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pro_title">Android Pro</string>
+    <string name="pro_settings_summary">One-time purchase. Support ongoing development.</string>
+    <string name="pro_support_description">A one-time Pro purchase supports ongoing development of NovaScale and unlocks the features below. No subscription.</string>
+    <string name="pro_open_source_title">Open source</string>
+    <string name="pro_open_source_description">NovaScale for Android is open source. You are welcome to fork the code, change or remove the limits, and build your own version.</string>
+    <string name="pro_community_title">Community edition</string>
+    <string name="pro_community_description">All local features are included in this open-source build.</string>
+    <string name="pro_community_included">No purchase required.</string>
+    <string name="pro_tailnets">Additional tailnets</string>
+    <string name="pro_tailnets_detail">Save more networks. Keep one active at a time.</string>
+    <string name="pro_groups">Unlimited custom groups</string>
+    <string name="pro_groups_detail">Organize your hosts however you like.</string>
+    <string name="pro_herdr">Unlimited daily Herdr visits</string>
+    <string name="pro_herdr_detail">Start remote visits throughout the day.</string>
+    <string name="pro_tailnets_limit">The free plan includes one saved tailnet.</string>
+    <string name="pro_groups_limit">The free plan includes three custom host groups.</string>
+    <string name="pro_herdr_limit">The free plan includes three Herdr visits each day. Existing visits can continue.</string>
+    <string name="pro_buy_price">Buy Pro — %1$s</string>
+    <string name="pro_buy">Buy Pro</string>
+    <string name="pro_later">Later</string>
+    <string name="pro_purchase_scope">Android only. Restore with the same Google Play account.</string>
+    <string name="pro_restore">Restore purchases</string>
+    <string name="pro_restored">Your Android Pro purchase has been restored.</string>
+    <string name="pro_unlocked">Android Pro is unlocked. Thank you for supporting NovaScale.</string>
+    <string name="pro_pending">Your payment is pending. Pro unlocks once Google Play confirms it.</string>
+    <string name="pro_unavailable">Purchases are currently unavailable. You can keep using the free features.</string>
+    <string name="pro_network_error">Could not reach the store. Previously verified Pro access remains available.</string>
+    <string name="pro_verification_error">Could not verify the purchase yet. Please try Restore purchases before buying again.</string>
+    <string name="pro_storage_error">Could not save purchase status on this device. Restore purchases after restarting if needed.</string>
+    <string name="pro_retry">Try again</string>
+    <string name="pro_privacy">Privacy</string>
+    <string name="pro_terms">Terms</string>
+    <string name="pro_herdr_remaining">%1$d free Herdr visits available · %2$d reserved. A visit counts after 30 seconds of connected use; short visits accumulate.</string>
+    <string name="pro_herdr_reset">New visits reset on %1$s at local midnight. Existing visits can continue.</string>
+    <string name="pro_replace_tailnet">Replace active tailnet</string>
+    <string name="pro_replace_tailnet_description">Replace this saved network with a fresh identity. Its local tools will close and its saved login, SSH credentials and host trust will be removed after replacement succeeds. Cancel to keep the current network.</string>
+    <string name="pro_use_free_tailnet">Use as free tailnet</string>
+    <string name="pro_use_free_tailnet_description">Switch to this network and make it your free tailnet. Other saved networks stay stored; Pro is required to switch among additional networks.</string>
+    <string name="pro_status_active">Pro active</string>
+    <string name="pro_status_free">Free plan · 1 tailnet, 3 groups, 3 Herdr visits a day</string>
+</resources>

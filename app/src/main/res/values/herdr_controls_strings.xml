@@ -1,0 +1,28 @@
+<resources>
+    <string name="herdr_restoring">Restoring connection…</string>
+    <string name="herdr_recovery_failed">Could not restore the connection. Try reconnecting.</string>
+    <string name="herdr_agents">Agents</string>
+    <string name="herdr_agents_empty">No agents in this session. Use tabs or workspaces to open a terminal.</string>
+    <string name="herdr_agent_working">Working</string>
+    <string name="herdr_agent_attention">Needs attention</string>
+    <string name="herdr_agent_idle">Idle</string>
+    <string name="herdr_agent_done">Done</string>
+    <string name="herdr_agent_unknown">Unknown</string>
+    <string name="herdr_selected">Selected</string>
+    <string name="herdr_workspaces">Workspaces</string>
+    <string name="herdr_workspace_new">New workspace</string>
+    <string name="herdr_tab_new">New tab</string>
+    <string name="herdr_tab_options">Options for tab %1$s</string>
+    <string name="herdr_tab_rename">Rename tab</string>
+    <string name="herdr_tab_name">Tab name</string>
+    <string name="herdr_tab_close">Close tab</string>
+    <string name="herdr_tab_close_named">Close tab “%1$s”?</string>
+    <string name="herdr_tab_close_help">Closing this tab terminates its remote shells and processes.</string>
+    <string name="herdr_tab_close_last_help">This is the last tab in its workspace. Closing it also closes the workspace and terminates its remote shells and processes.</string>
+    <string name="herdr_actions">Herdr actions</string>
+    <string name="herdr_action_error">Action not completed</string>
+    <string name="herdr_action_unknown">The server did not confirm the result. Reconnect and check its state before trying again.</string>
+    <string name="herdr_action_stale">The session changed. Select the target again.</string>
+    <string name="herdr_action_unsupported">This server does not support that action.</string>
+    <string name="herdr_action_refused">The server refused the action. Your connection remains open.</string>
+</resources>

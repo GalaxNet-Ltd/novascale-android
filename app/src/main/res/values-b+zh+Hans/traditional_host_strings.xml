@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="traditional_host_add">添加主机</string>
+    <string name="traditional_host_name">名称</string>
+    <string name="traditional_host_edit">编辑主机</string>
+    <string name="traditional_network_path">网络路径</string>
+    <string name="traditional_direct">直接连接</string>
+    <string name="traditional_tailnet">通过 Tailscale</string>
+    <string name="traditional_direct_help">通过互联网或本地网络连接。</string>
+    <string name="traditional_tailnet_help">通过 Tailscale 网络连接。</string>
+    <string name="traditional_host_save_error">请检查主机信息后重试。</string>
+    <string name="traditional_host_load_error">无法加载保存的 SSH 配置。</string>
+    <string name="traditional_delete_title">删除主机？</string>
+    <string name="traditional_delete_description">删除 %1$s 及其保存的 SSH 凭据？</string>
+</resources>

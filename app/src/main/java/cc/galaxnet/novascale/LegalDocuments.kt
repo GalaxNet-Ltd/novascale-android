@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -15,7 +15,7 @@ internal enum class PackagedLegalDocument(
 ) {
     APPLICATION_LICENSE(
         titleRes = R.string.application_license,
-        assetPath = "legal/GPL-3.0-only.txt",
+        assetPath = "legal/Apache-2.0.txt",
     ),
     THIRD_PARTY_NOTICES(
         titleRes = R.string.third_party_notices,

@@ -1,4 +1,4 @@
-// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.core
 
 import java.nio.ByteBuffer
@@ -22,6 +22,9 @@ data class TerminalImagePlacement(
 
 /** Session-owned cache. Call only from the session's serialized snapshot consumer. */
 class TerminalSnapshotDecoder {
+    var frameRevision: Long = 0
+        internal set
+    internal var frameRows: Map<TerminalRowIdentity, TerminalRowSnapshot> = emptyMap()
     var imageRevision: Long = 0
         private set
     private var images: Map<Long, TerminalImage> = emptyMap()
@@ -29,10 +32,16 @@ class TerminalSnapshotDecoder {
     fun parse(bytes: ByteArray): TerminalRenderSnapshot = try {
         GhosttySnapshotParser.parse(bytes, this)
     } catch (error: IllegalArgumentException) {
-        // Request complete assets on the next frame after any failed decode.
+        reset()
+        throw error
+    }
+
+    /** Request complete rows and assets after a failed or discarded frame. */
+    fun reset() {
         imageRevision = 0
         images = emptyMap()
-        throw error
+        frameRevision = 0
+        frameRows = emptyMap()
     }
 
     internal fun parseImages(buffer: ByteBuffer, offset: Int): List<TerminalImagePlacement> {

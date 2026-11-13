@@ -2,12 +2,13 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
 
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
 import cc.galaxnet.novascale.remote.AuthenticationKind
+import cc.galaxnet.novascale.remote.SshTransport
 import cc.galaxnet.novascale.core.TailnetPeer
 import cc.galaxnet.novascale.nativecore.NativeTerminalTheme
 import cc.galaxnet.novascale.ui.asUiText
@@ -21,6 +22,78 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TerminalSessionRegistryTest {
+    @Test
+    fun shellExitRemovesSelectedTabAndSelectsItsNeighbor() {
+        val runtimes = mutableListOf<FakeTerminalRuntime>()
+        val registry = TerminalSessionRegistry(runtimeFactory = { FakeTerminalRuntime().also(runtimes::add) }, testing = Unit)
+        val group = registry.getOrCreate("exit", "host", testPeer("host", "Host"), RemoteConnectionConfig(host = "host"))
+        group.addTab(false)
+        group.addTab(false)
+        group.selectTab(2)
+        runtimes[1].onExited!!.invoke()
+        assertEquals(listOf(1, 3), group.tabs.value.map { it.id })
+        assertEquals(3, group.selectedTabId.value)
+        assertTrue(runtimes[1].closed)
+        assertEquals(null, runtimes[1].onExited)
+        assertFalse(runtimes[0].closed)
+        assertEquals(2, registry.sessions.value.single().tabCount)
+    }
+
+    @Test
+    fun backgroundAndLastShellExitUpdateDetachedGroupAndService() {
+        val runtimes = mutableListOf<FakeTerminalRuntime>()
+        val serviceUpdates = mutableListOf<Pair<Boolean, Int>>()
+        val registry = TerminalSessionRegistry(runtimeFactory = { FakeTerminalRuntime().also(runtimes::add) },
+            backgroundServiceUpdater = { enabled, count -> serviceUpdates += enabled to count }, testing = Unit)
+        val peer = testPeer("host", "Host")
+        val config = RemoteConnectionConfig(host = "host")
+        val group = registry.getOrCreate("exit", "host", peer, config)
+        group.addTab(false)
+        registry.setKeepInBackground(true)
+        group.attachView().close()
+        runtimes[0].onExited!!.invoke()
+        assertEquals(2, group.selectedTabId.value)
+        assertTrue(registry.sessions.value.single().detached)
+        val lateExit = runtimes[1].onExited!!
+        lateExit()
+        assertTrue(group.isClosed.value)
+        assertTrue(registry.sessions.value.isEmpty())
+        assertEquals(true to 0, serviceUpdates.last())
+        assertTrue(runtimes.all { it.closed && it.onExited == null })
+        val replacement = registry.getOrCreate("exit", "host", peer, config)
+        lateExit()
+        assertFalse(replacement.isClosed.value)
+        assertEquals(1, registry.sessions.value.single().tabCount)
+    }
+
+    @Test
+    fun logoutClosesActualTailnetTabsAndPreservesDirectTabsAfterRouteEdits() {
+        val runtimes = mutableListOf<FakeTerminalRuntime>()
+        val registry = TerminalSessionRegistry(runtimeFactory = { FakeTerminalRuntime().also(runtimes::add) }, testing = Unit)
+        val peer = testPeer("mixed", "Mixed")
+        val direct = RemoteConnectionConfig(host = "host", username = "fixture", transport = SshTransport.DIRECT)
+        val tailnet = direct.copy(transport = SshTransport.TAILNET)
+        val first = registry.getOrCreate("mixed-1", "mixed", peer, direct)
+        first.ensureConnected()
+        runtimes[0].markConnected()
+        first.updateConnectionConfig(tailnet)
+        first.addTab(connectImmediately = true)
+        runtimes[1].markConnected()
+        val second = registry.getOrCreate("mixed-2", "mixed", peer, tailnet)
+        second.ensureConnected()
+        runtimes[2].markConnected()
+        second.updateConnectionConfig(direct)
+        second.addTab(connectImmediately = true)
+        runtimes[3].markConnected()
+        registry.closeTailnetSessions()
+        assertFalse(runtimes[0].closed)
+        assertTrue(runtimes[1].closed)
+        assertTrue(runtimes[2].closed)
+        assertFalse(runtimes[3].closed)
+        assertEquals(listOf(1, 1), registry.sessions.value.map { it.tabCount })
+        assertEquals(1, first.selectedTabId.value)
+        assertEquals(2, second.selectedTabId.value)
+    }
     @Test
     fun editingPasswordRetriesTheExistingGroupWithTheSavedCredentials() {
         val runtime = FakeTerminalRuntime()
@@ -201,9 +274,12 @@ private fun testPeer(hostId: String, displayName: String) = TailnetPeer(
 private class FakeTerminalRuntime : TerminalRuntime {
     private val mutableState = MutableStateFlow(TerminalConnectionState())
     override val state: StateFlow<TerminalConnectionState> = mutableState
+    override var onExited: (() -> Unit)? = null
     var closed = false
     val resizeEvents = mutableListOf<Pair<Int, Int>>()
     val connectionRequests = mutableListOf<RemoteConnectionConfig>()
+    override val activeTransport: SshTransport?
+        get() = if (mutableState.value.busy || mutableState.value.connected) connectionRequests.lastOrNull()?.transport else null
 
     override fun connect(config: RemoteConnectionConfig) {
         connectionRequests += config

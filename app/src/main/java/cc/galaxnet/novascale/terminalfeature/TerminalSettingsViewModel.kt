@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
 
@@ -70,6 +70,10 @@ internal class TerminalSettingsViewModel(
 
     fun selectCursorShape(cursorShape: TerminalCursorShapeOption) {
         viewModelScope.launch { preferences.setTerminalCursorShape(cursorShape) }
+    }
+
+    fun setHerdrImproveTextContrast(enabled: Boolean) {
+        viewModelScope.launch { preferences.setHerdrImproveTextContrast(enabled) }
     }
 
     fun importItermTheme(uri: Uri) {

@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
 
@@ -11,6 +11,7 @@ import cc.galaxnet.novascale.R
 import cc.galaxnet.novascale.core.TailnetBackend
 import cc.galaxnet.novascale.core.TailnetPeer
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
+import cc.galaxnet.novascale.remote.SshTransport
 import cc.galaxnet.novascale.ui.UiText
 import cc.galaxnet.novascale.ui.asUiText
 import cc.galaxnet.novascale.ui.uiText
@@ -42,8 +43,8 @@ internal data class TerminalSessionTab(
 
 /**
  * Application-owned terminal runtimes. Compose screens attach and detach views;
- * only explicit close, logout/tailnet replacement, or process death owns the
- * SSH runtime's end of life.
+ * a confirmed shell exit, explicit close, logout/tailnet replacement, or process
+ * death ends a runtime. Transport/authentication failures remain retryable.
  */
 internal class TerminalSessionRegistry private constructor(
     private val runtimeFactory: () -> TerminalRuntime,
@@ -135,6 +136,11 @@ internal class TerminalSessionRegistry private constructor(
         publish()
     }
 
+    /** Logout only closes tabs actually using the node, even in mixed-route groups. */
+    fun closeTailnetSessions() {
+        groups.values.toList().forEach(TerminalSessionGroup::closeTailnetTabs)
+    }
+
     private fun publish() {
         mutableSessions.value = groups.values.map(TerminalSessionGroup::summary)
         updateBackgroundService()
@@ -161,12 +167,15 @@ internal class TerminalSessionGroup(
     private val onCloseRequested: (String) -> Unit,
 ) {
     private val startedAtEpochMillis = System.currentTimeMillis()
+    private val mutableClosed = MutableStateFlow(false)
+    val isClosed: StateFlow<Boolean> = mutableClosed.asStateFlow()
+    private val closed get() = mutableClosed.value
     private val mutableTabs = MutableStateFlow(
         listOf(
             TerminalSessionTab(
                 id = 1,
                 title = tabTitleFactory(1),
-                runtime = runtimeFactory(),
+                runtime = createRuntime(1),
                 config = initialConfig,
             ),
         ),
@@ -179,7 +188,17 @@ internal class TerminalSessionGroup(
     private val attachedViews = linkedSetOf<String>()
     private var activeViewId: String? = null
     private var nextTabId = 2
-    private var closed = false
+
+    private fun createRuntime(id: Int): TerminalRuntime = runtimeFactory().also { runtime ->
+        runtime.onExited = {
+            if (!closed && mutableTabs.value.any { it.id == id && it.runtime === runtime }) closeTab(id)
+        }
+    }
+
+    private fun closeRuntime(runtime: TerminalRuntime) {
+        runtime.onExited = null
+        runtime.close()
+    }
 
     fun attachView(attachmentId: String = UUID.randomUUID().toString()): AutoCloseable {
         check(!closed) { "Terminal session is closed" }
@@ -215,6 +234,7 @@ internal class TerminalSessionGroup(
     }
 
     fun ensureConnected() {
+        if (closed) return
         mutableTabs.value.forEach { tab -> tab.runtime.connectIfNeeded(tab.config) }
     }
 
@@ -230,7 +250,7 @@ internal class TerminalSessionGroup(
         val tab = TerminalSessionTab(
             id = id,
             title = tabTitleFactory(id),
-            runtime = runtimeFactory(),
+            runtime = createRuntime(id),
             config = mutableTabs.value.first().config,
         )
         mutableTabs.value = mutableTabs.value + tab
@@ -256,15 +276,17 @@ internal class TerminalSessionGroup(
     }
 
     fun closeTab(tabId: Int): Boolean {
+        if (closed) return false
         val tab = mutableTabs.value.firstOrNull { it.id == tabId } ?: return false
         if (mutableTabs.value.size == 1) {
             onCloseRequested(key)
             return true
         }
-        tab.runtime.close()
+        val index = mutableTabs.value.indexOf(tab)
+        closeRuntime(tab.runtime)
         mutableTabs.value = mutableTabs.value - tab
         if (mutableSelectedTabId.value == tabId) {
-            mutableSelectedTabId.value = mutableTabs.value.first().id
+            mutableSelectedTabId.value = mutableTabs.value[index.coerceAtMost(mutableTabs.value.lastIndex)].id
         }
         onChanged()
         return false
@@ -272,6 +294,22 @@ internal class TerminalSessionGroup(
 
     fun closeSession() {
         onCloseRequested(key)
+    }
+
+    internal fun closeTailnetTabs() {
+        if (closed) return
+        val (tailnet, retained) = mutableTabs.value.partition {
+            (it.runtime.activeTransport ?: it.config.transport) == SshTransport.TAILNET
+        }
+        if (tailnet.isEmpty()) return
+        if (retained.isEmpty()) {
+            onCloseRequested(key)
+            return
+        }
+        tailnet.forEach { closeRuntime(it.runtime) }
+        mutableTabs.value = retained
+        if (retained.none { it.id == mutableSelectedTabId.value }) mutableSelectedTabId.value = retained.first().id
+        onChanged()
     }
 
     internal fun summary(): TerminalSessionSummary = TerminalSessionSummary(
@@ -286,8 +324,8 @@ internal class TerminalSessionGroup(
 
     internal fun closeRuntimes() {
         if (closed) return
-        closed = true
-        mutableTabs.value.forEach { it.runtime.close() }
+        mutableClosed.value = true
+        mutableTabs.value.forEach { closeRuntime(it.runtime) }
         attachedViews.clear()
         activeViewId = null
     }

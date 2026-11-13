@@ -1,0 +1,17 @@
+<resources>
+    <string name="pro_debug_title">调试：Pro 状态</string>
+    <string name="pro_debug_description">无需购买即可测试限制。重启后仍保留。</string>
+    <string name="pro_debug_default">默认</string>
+    <string name="pro_debug_free">免费</string>
+    <string name="pro_debug_pro">Pro</string>
+    <string name="herdr_debug_title">调试：Herdr 用量</string>
+    <string name="herdr_debug_free">正在执行每日免费额度限制。</string>
+    <string name="herdr_debug_unlimited">不限使用次数。Pro 访问不会消耗免费额度。</string>
+    <string name="herdr_debug_day">统计日期：%1$s。下次重置：本地时间 %2$s 零点。</string>
+    <string name="herdr_debug_counts">已用 %1$d / %2$d 次 · 预留 %3$d 次 · 可用 %4$d 次</string>
+    <string name="herdr_debug_progress">下次计入免费访问：%1$.1f / %2$d 秒</string>
+    <string name="herdr_debug_attachments">保留的连接：%1$d · 活跃：%2$d\n已计次或由 Pro 放行：%3$d</string>
+    <string name="herdr_debug_explanation">仅在已连接且前台使用时计时，短时访问会累计。关闭连接会释放预留额度，但不会清除累计时间或已用次数。统计仅保存在本机，每秒更新。</string>
+    <string name="herdr_debug_loading">正在加载用量…</string>
+    <string name="herdr_debug_storage_error">无法更新用量存储。显示的数据来自上次成功更新。</string>
+</resources>

@@ -1,7 +1,7 @@
 // NovaScale for Android
 // Copyright (C) 2026 NovaScale contributors
 //
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
 fn main() {
     println!("cargo:rerun-if-env-changed=NOVA_GHOSTTY_LIB_DIR");
@@ -10,8 +10,11 @@ fn main() {
     }
     let directory = std::env::var("NOVA_GHOSTTY_LIB_DIR")
         .expect("NOVA_GHOSTTY_LIB_DIR is required by the ghostty feature");
-    // Zig changes must invalidate Cargo's link step even when the directory is unchanged.
-    println!("cargo:rerun-if-changed={directory}/libnova_ghostty.a");
     println!("cargo:rustc-link-search=native={directory}");
-    println!("cargo:rustc-link-lib=static=nova_ghostty");
+    // Link the adapter and its SIMD dependencies. Static archives do not carry
+    // transitive libraries; changes to any archive must invalidate Cargo's link.
+    for library in ["nova_ghostty", "ghostty-vt-static", "simdutf", "highway"] {
+        println!("cargo:rerun-if-changed={directory}/lib{library}.a");
+        println!("cargo:rustc-link-lib=static={library}");
+    }
 }

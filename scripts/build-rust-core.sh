@@ -22,7 +22,7 @@ export CC_aarch64_linux_android="$toolchain/aarch64-linux-android28-clang"
 export CC_x86_64_linux_android="$toolchain/x86_64-linux-android28-clang"
 export AR_aarch64_linux_android="$toolchain/llvm-ar"
 export AR_x86_64_linux_android="$toolchain/llvm-ar"
-export CARGO_ENCODED_RUSTFLAGS="-Clink-arg=-Wl,-z,max-page-size=16384"
+export CARGO_ENCODED_RUSTFLAGS="-Clink-arg=-Wl,-z,max-page-size=16384,--no-undefined"
 
 zig_bin="$("$android_root/scripts/ensure-zig.sh")"
 for abi in arm64-v8a x86_64; do

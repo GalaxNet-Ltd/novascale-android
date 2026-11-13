@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Instrumentation
@@ -24,7 +24,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
-import cc.galaxnet.novascale.terminal.TerminalCanvasView
+import cc.galaxnet.novascale.terminal.NovaTerminalView
 import cc.galaxnet.novascale.terminalfeature.TerminalAccessoryKeyboard
 import cc.galaxnet.novascale.terminalfeature.TerminalChromeColors
 import cc.galaxnet.novascale.ui.NovaScaleTheme
@@ -43,7 +43,7 @@ internal object TerminalAccessoryChecks {
             val registry = LifecycleRegistry(this)
             override val lifecycle: Lifecycle get() = registry
         }
-        lateinit var terminal: TerminalCanvasView
+        lateinit var terminal: NovaTerminalView
         test.runOnMainSync {
             owner.registry.currentState = Lifecycle.State.RESUMED
             activity.setContent {
@@ -55,7 +55,7 @@ internal object TerminalAccessoryChecks {
                         var shift by remember(tab.intValue) { mutableStateOf(false) }
                         Column(Modifier.width(339.dp).fillMaxHeight().safeDrawingPadding()) {
                             AndroidView(factory = { context ->
-                                TerminalCanvasView(context).also { terminal = it }
+                                NovaTerminalView(context).also { terminal = it }
                             }, update = { view ->
                                 view.setOneShotModifiers(control, alt, shift)
                                 view.setTerminalCallbacks(onInput = { sent += it.decodeToString() }, onResize = null,
@@ -182,7 +182,7 @@ internal object TerminalAccessoryChecks {
         check(sent.size >= 2 && sent.drop(1).all { it == "\u001b[C" }) { "Drag repeat/one-shot state: $sent" }
         pointer(MotionEvent.ACTION_MOVE, x, y - travel)
         SystemClock.sleep(100)
-        check(sent.last() == "\u001b[A") { "Drag did not change direction" }
+        check(sent.last() == "\u001b[A") { "Drag did not change direction: $sent" }
         pointer(MotionEvent.ACTION_MOVE, x, y)
         val centeredCount = sent.size
         SystemClock.sleep(750)

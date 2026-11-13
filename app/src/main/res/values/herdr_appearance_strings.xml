@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="herdr_appearance_section">Herdr Remote</string>
+    <string name="herdr_improve_text_contrast">Improve Text Contrast</string>
+    <string name="herdr_improve_text_contrast_help">Keep text readable on low-contrast backgrounds. Turn off to use original terminal colors.</string>
+</resources>

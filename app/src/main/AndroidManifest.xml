@@ -45,11 +45,19 @@
             android:name=".MainActivity"
             android:theme="@style/Theme.NovaScale.Launch"
             android:exported="true"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Document windows need standard launch mode; the launcher reuses its own screen. -->
+        <activity
+            android:name=".TerminalWindowActivity"
+            android:theme="@style/Theme.NovaScale.Launch"
+            android:exported="false"
+            android:launchMode="standard"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

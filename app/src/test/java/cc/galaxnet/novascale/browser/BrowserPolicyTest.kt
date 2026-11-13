@@ -1,9 +1,29 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 import org.junit.Assert.*
 import org.junit.Test
 class BrowserPolicyTest {
+    @Test fun proxyUsesTheSelectedTailnetIdWhileCredentialsRemainNodeScoped() {
+        val identity = ProxyIdentity("work-profile", "device-node")
+        val session = identity.session(cc.galaxnet.novascale.core.LocalProxyEndpoint("proxy-1", "127.0.0.1:9000", false), "user", "test-secret", "realm")
+        val running = ProxyUiState(ProxyStatus.RUNNING, session)
+        assertEquals(BrowserAccess.READY, browserAccess(running, "work-profile"))
+        assertEquals(BrowserAccess.STARTING, browserAccess(running, "personal-profile"))
+        assertEquals(BrowserAccess.STARTING, browserAccess(running, null))
+        assertEquals("work-profile:device-node", identity.credentialKey)
+        assertNotEquals(identity.credentialKey, identity.copy(nodeId = "replacement-node").credentialKey)
+        assertFalse(session.toString().contains("test-secret"))
+    }
+
+    @Test fun disabledDisconnectedAndFailedProxyStatesHaveDistinctRecovery() {
+        assertEquals(BrowserAccess.DISABLED, browserAccess(ProxyUiState(stopReason = ProxyStopReason.DISABLED), "work"))
+        assertEquals(BrowserAccess.TAILNET_REQUIRED, browserAccess(ProxyUiState(), "work"))
+        assertEquals(BrowserAccess.STARTING, browserAccess(ProxyUiState(stopReason = ProxyStopReason.INACTIVE), "work"))
+        assertEquals(BrowserAccess.STARTING, browserAccess(ProxyUiState(ProxyStatus.STARTING), "work"))
+        assertEquals(BrowserAccess.FAILED, browserAccess(ProxyUiState(ProxyStatus.FAILED), "work"))
+    }
+
     @Test fun hostSheetPortsChooseSchemeAndPreserveEncodedComponents() {
         assertEquals("https://grafana/dashboard?q=a%26b#x", hostWebAddressWithPort("http://grafana:3000/dashboard?q=a%26b#x", 443))
         assertEquals("http://[fd7a:115c:a1e0::1]:8096/web", hostWebAddressWithPort("http://[fd7a:115c:a1e0::1]/web", 8096))
@@ -43,6 +63,29 @@ class BrowserPolicyTest {
         assertNull(browserPortUrl("https://", 8080))
     }
 
+    @Test fun changingPortOrSchemePreservesEncodedUrlComponents() {
+        assertEquals("https://host:8443/a%2Fb?q=a%26b#x%20y", browserPortUrl("https://host/a%2Fb?q=a%26b#x%20y", 8443))
+        assertEquals("https://host/a%2Fb?q=a%26b#x%20y", browserChangeScheme("http://host/a%2Fb?q=a%26b#x%20y", "https"))
+    }
+    @Test fun profileChangeDiscardsPagesAndDrafts() {
+        val model = BrowserViewModel()
+        model.bindProfile("first")
+        model.address("http://private/dashboard")
+        model.active.requestedUrl = model.open()
+        model.bindProfile("first")
+        assertEquals(1, model.tabs.size)
+        model.bindProfile("second")
+        assertTrue(model.tabs.isEmpty())
+        assertEquals("http://", model.state.value.address)
+        assertNull(model.active.requestedUrl)
+    }
+    @Test fun suggestionsAreLocalBoundedAndMatchTitleOrAddress() {
+        val sites = (1..20).map { BrowserSite("$it", "http://site$it/", "Dashboard $it", it.toLong(), it == 2) }
+        assertEquals(8, browserSuggestions(sites, "http://").size)
+        assertEquals("2", browserSuggestions(sites, "dashboard").first().id)
+        assertEquals("http://site19/", browserSuggestions(sites, "site19").single().url)
+        assertTrue(browserSuggestions(sites, "missing").isEmpty())
+    }
     @Test fun acceptsTailnetAndInternetAddresses() {
         assertEquals("http://grafana:3000", browserUrl("grafana:3000"))
         assertEquals("http://100.64.0.42:8096/web/", browserUrl("http://100.64.0.42:8096/web/"))

@@ -1,0 +1,42 @@
+<resources>
+    <string name="host_groups">群組</string>
+    <string name="host_groups_manage">管理群組</string>
+    <string name="host_groups_filter">篩選主機：%1$s</string>
+    <string name="host_groups_all">所有主機</string>
+    <string name="host_groups_tailnet">Tailnet 主機</string>
+    <string name="host_groups_traditional">傳統 SSH 主機</string>
+    <string name="host_groups_ungrouped">未分組</string>
+    <string name="host_groups_empty">尚無群組。建立群組來整理主機。</string>
+    <string name="host_groups_no_matching_hosts">沒有符合篩選條件的主機。</string>
+    <string name="host_groups_create">建立群組</string>
+    <string name="host_groups_rename">重新命名群組</string>
+    <string name="host_groups_name">群組名稱</string>
+    <string name="host_groups_delete_title">刪除群組？</string>
+    <string name="host_groups_delete_description">刪除「%1$s」？主機及其連線會保留。</string>
+    <string name="host_groups_assign_title">%1$s 的群組</string>
+    <string name="host_groups_assign_empty">請先在主機畫面建立群組。</string>
+    <string name="host_groups_unavailable">此主機缺少穩定的 tailnet 身分，無法加入群組。</string>
+    <string name="host_groups_save_error">無法儲存群組，請再試一次。</string>
+    <string name="host_groups_storage_error">無法載入群組，請再試一次。</string>
+    <string name="host_groups_edit_named">重新命名 %1$s</string>
+    <string name="host_groups_delete_named">刪除 %1$s</string>
+    <string name="host_pinned">已釘選主機</string>
+    <string name="host_pinned_indicator">已釘選</string>
+    <string name="host_pin">釘選主機</string>
+    <string name="host_unpin">取消釘選主機</string>
+    <string name="host_pin_unavailable">此主機缺少穩定的 tailnet 身分，無法釘選。</string>
+    <string name="host_pin_storage_error">無法載入已釘選主機，請再試一次。</string>
+    <string name="host_pin_save_error">無法更新釘選的主機，請再試一次。</string>
+    <string name="host_filter_title">篩選與群組</string>
+    <string name="host_filter_open">篩選與群組</string>
+    <string name="host_filter_section">篩選</string>
+    <string name="host_filter_show_group">只顯示此群組</string>
+    <string name="host_filter_group_options">%1$s 的選項</string>
+    <string name="host_filter_expand_group">展開 %1$s</string>
+    <string name="host_filter_collapse_group">收合 %1$s</string>
+    <string name="host_filter_no_members">此群組目前沒有可用主機。</string>
+    <string name="host_filter_remove_member">將 %1$s 移出 %2$s</string>
+    <string name="host_filter_new_group">新增群組</string>
+    <string name="host_filter_traditional_subtitle">傳統 SSH 主機</string>
+    <plurals name="host_filter_member_count"><item quantity="other">%d 部主機</item></plurals>
+</resources>

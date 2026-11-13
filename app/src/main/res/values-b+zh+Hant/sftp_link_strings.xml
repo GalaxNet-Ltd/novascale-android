@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="sftp_symbolic_link">符號連結</string>
+    <string name="sftp_folder_link">資料夾連結</string>
+    <string name="sftp_file_link">檔案連結</string>
+    <string name="sftp_link_target_unavailable">連結 · 目標無法使用</string>
+    <string name="sftp_link_unavailable">連結目標不存在、無法存取或不受支援。請檢查目標後重新整理再試。</string>
+    <string name="sftp_delete_link_description">僅刪除此符號連結，目標及其內容將會保留。</string>
+</resources>

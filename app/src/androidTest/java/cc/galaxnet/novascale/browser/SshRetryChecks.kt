@@ -1,11 +1,15 @@
-// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Instrumentation
 import android.os.ParcelFileDescriptor
+import androidx.activity.compose.setContent
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
 import cc.galaxnet.novascale.core.*
 import cc.galaxnet.novascale.remote.*
 import cc.galaxnet.novascale.terminalfeature.*
+import cc.galaxnet.novascale.ui.NovaScaleTheme
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
@@ -13,7 +17,7 @@ import kotlinx.coroutines.flow.first
 
 /** Real Rust SSH auth and Kotlin session ownership, with synthetic credentials only. */
 internal object SshRetryChecks {
-    fun run(test: Instrumentation, port: Int, fingerprint: String) {
+    fun run(test: Instrumentation, activity: ProxyTestActivity, port: Int, fingerprint: String) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val dials = AtomicInteger()
         val identity = TailnetIdentity("fixture", "fixture.invalid", emptyList())
@@ -80,6 +84,99 @@ internal object SshRetryChecks {
             test.runOnMainSync { registry!!.getOrCreate("retry-fixture", peer.stableNodeId, peer, corrected).ensureConnected() }
             Thread.sleep(300)
             check(dials.get() == 3 && runtime.state.value.connected) { "Reattachment restarted a healthy session" }
+
+            test.runOnMainSync { runtime.send("fixture-kitty\r".toByteArray()) }
+            val graphics = runBlocking { withTimeout(20_000) { runtime.state.first {
+                val text = it.snapshot?.accessibleText().orEmpty()
+                "KITTY_UPLOAD_OK" in text && "KITTY_PLACEMENT_OK" in text
+            } } }.snapshot!!
+            check(graphics.images.single().image.let { it.width == 1254 && it.height == 1254 && it.rgba.size == 1254 * 1254 * 4 }) {
+                "Large chunked PNG upload or separate placement failed"
+            }
+            test.runOnMainSync { runtime.send("KITTY_STILL_INTERACTIVE\r".toByteArray()) }
+            runBlocking { withTimeout(5_000) { runtime.state.first {
+                it.snapshot?.accessibleText()?.contains("KITTY_STILL_INTERACTIVE") == true
+            } } }
+
+            test.runOnMainSync { runtime.send("fixture-hold-ready\r".toByteArray()) }
+            runBlocking { withTimeout(5_000) { runtime.state.first { it.snapshot?.accessibleText()?.contains("SYNC-READY") == true } } }
+            test.runOnMainSync { runtime.send("fixture-hold\r".toByteArray()) }
+            Thread.sleep(250)
+            check(runtime.state.value.snapshot?.accessibleText()?.contains("SYNC-PENDING") == false) {
+                "Synchronized output exposed an incomplete frame"
+            }
+            // No new socket bytes, resize, snapshot polling or user input occurs.
+            // A native deadline must emit the update while the server is idle.
+            runBlocking { withTimeout(3_000) { runtime.state.first { it.snapshot?.accessibleText()?.contains("SYNC-PENDING") == true } } }
+            check(runtime.state.value.connected) { "Render hold timeout disconnected SSH" }
+
+            val showing = mutableStateOf(true)
+            val exits = AtomicInteger()
+            test.runOnMainSync {
+                activity.setContent {
+                    NovaScaleTheme(darkTheme = true) {
+                        if (showing.value) TerminalScreen(
+                            terminalSessions = registry!!, sessionKey = "retry-fixture", hostId = peer.stableNodeId,
+                            peer = peer, tailnetState = backend.currentState, initialConfig = corrected,
+                            terminalSettings = TerminalSettings(), terminalTheme = TerminalThemeCatalog.default,
+                            onTerminalFontSize = {}, onExit = { exits.incrementAndGet(); showing.value = false },
+                            onOpenNewWindow = {}, onEditSshSettings = {},
+                        ) else Text("Shell exit fixture complete")
+                    }
+                }
+            }
+            test.waitForIdleSync()
+            fun awaitCondition(check: () -> Boolean) = runBlocking {
+                withTimeout(15_000) { while (!check()) delay(25) }
+            }
+            SessionResumeUiChecks.backgroundAndResume(test, activity)
+            check(runtime.state.value.connected && registry!!.sessions.value.single().attachedViewCount == 1) {
+                "Backgrounding detached or disconnected the SSH session"
+            }
+            fun terminalTop(): Int {
+                var top = -1
+                test.runOnMainSync {
+                    fun visit(view: android.view.View) {
+                        if (view is cc.galaxnet.novascale.terminal.NovaTerminalView && view.isShown && view.height > 0) {
+                            val location = IntArray(2)
+                            view.getLocationOnScreen(location)
+                            top = location[1]
+                        } else if (view is android.view.ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+                    }
+                    visit(activity.window.decorView)
+                }
+                return top
+            }
+            awaitCondition { terminalTop() >= 0 }
+            val singleTabTop = terminalTop()
+            repeat(2) { pass ->
+                test.runOnMainSync { group.addTab(connectImmediately = true) }
+                val exiting = group.tabs.value.last()
+                awaitCondition { exiting.runtime.state.value.connected }
+                awaitCondition { terminalTop() > singleTabTop }
+                val rowHeight = (terminalTop() - singleTabTop) / activity.resources.displayMetrics.density
+                check(rowHeight in 39f..41f) { "SSH tab bar uses $rowHeight dp of terminal height" }
+                test.runOnMainSync {
+                    // The second pass exits an unselected tab while the first stays active.
+                    if (pass == 1) group.selectTab(1)
+                    exiting.runtime.send("exit 37\r".toByteArray())
+                }
+                awaitCondition { group.tabs.value.none { it.id == exiting.id } }
+                check(group.selectedTabId.value == 1 && runtime.state.value.connected)
+                check(registry!!.sessions.value.single().tabCount == 1 && exits.get() == 0)
+            }
+            test.runOnMainSync { runtime.send("fixture-drop\r".toByteArray()) }
+            awaitCondition { !runtime.state.value.connected && !runtime.state.value.busy }
+            check(group.tabs.value.single().runtime === runtime && !group.isClosed.value) {
+                "Transport failure removed the retryable tab"
+            }
+            test.runOnMainSync { runtime.connectIfNeeded(corrected) }
+            awaitCondition { runtime.state.value.connected }
+            test.runOnMainSync { runtime.send("exit\r".toByteArray()) }
+            awaitCondition { exits.get() == 1 }
+            test.waitForIdleSync()
+            check(group.isClosed.value && registry!!.sessions.value.isEmpty()) { "Last exited shell left a session registered" }
+            check(exits.get() == 1) { "Last-tab exit navigated more than once" }
         } finally {
             test.runOnMainSync { registry?.close(); scope.cancel() }
             if (originalFingerprint == null) known.forget(wrong) else known.trust(wrong, originalFingerprint)

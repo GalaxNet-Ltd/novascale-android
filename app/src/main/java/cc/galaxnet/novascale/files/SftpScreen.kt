@@ -2,15 +2,23 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.files
+
+import cc.galaxnet.novascale.ui.NovaDestructiveButton
+
+import cc.galaxnet.novascale.ui.NovaSecondaryButton
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import android.text.format.Formatter
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,6 +96,7 @@ import cc.galaxnet.novascale.core.TailnetBackend
 import cc.galaxnet.novascale.core.TailnetState
 import cc.galaxnet.novascale.remote.HostKeyConfirmationDialog
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
+import cc.galaxnet.novascale.remote.SshTransport
 import cc.galaxnet.novascale.ui.NovaGroupedCard
 import cc.galaxnet.novascale.ui.NovaSpacing
 import cc.galaxnet.novascale.ui.NovaTheme
@@ -108,7 +117,7 @@ internal fun SftpScreen(
 ) {
     val context = LocalContext.current
     val model = viewModel<SftpViewModel>(
-        key = "sftp:${initialConfig.host}:${initialConfig.port}",
+        key = "sftp:${initialConfig.transport}:${initialConfig.tailnetProfileId}:${initialConfig.host}:${initialConfig.port}",
         factory = SftpViewModel.factory(context, tailnet),
     )
     val state by model.state.collectAsStateWithLifecycle()
@@ -124,7 +133,7 @@ internal fun SftpScreen(
     LaunchedEffect(tailnetState, initialConfig.host, state.connected, state.busy) {
         if (
             !autoConnectStarted &&
-            tailnetState is TailnetState.Running &&
+            (initialConfig.transport == SshTransport.DIRECT || tailnetState is TailnetState.Running) &&
             !state.connected &&
             !state.busy &&
             initialConfig.validate() == null
@@ -149,7 +158,7 @@ internal fun SftpScreen(
         !state.connected -> SftpConnect(
             state = state,
             config = initialConfig,
-            tailnetRunning = tailnetState is TailnetState.Running,
+            tailnetRunning = (initialConfig.transport == SshTransport.DIRECT || tailnetState is TailnetState.Running),
             onConnect = { model.connect(initialConfig) },
             onEditSshSettings = onEditSshSettings,
         )
@@ -222,7 +231,7 @@ private fun SftpConnect(
         if (!state.busy) {
             Row(horizontalArrangement = Arrangement.spacedBy(NovaSpacing.sm)) {
                 if (tailnetRunning && config.validate() == null) {
-                    Button(onClick = onConnect) { Text(stringResource(R.string.action_retry)) }
+                    NovaPrimaryButton(onClick = onConnect) { Text(stringResource(R.string.action_retry)) }
                 }
                 TextButton(onClick = onEditSshSettings) {
                     Text(stringResource(R.string.feature_ssh_settings))
@@ -290,7 +299,9 @@ private fun SftpBrowser(
             title = { Text(stringResource(R.string.delete_named_title, entry.name)) },
             text = {
                 Text(
-                    if (entry.isDirectory) {
+                    if (entry.isSymbolicLink) {
+                        stringResource(R.string.sftp_delete_link_description)
+                    } else if (entry.isDirectory) {
                         stringResource(R.string.delete_folder_description)
                     } else {
                         stringResource(R.string.delete_file_description)
@@ -298,17 +309,17 @@ private fun SftpBrowser(
                 )
             },
             confirmButton = {
-                TextButton(
+                NovaDestructiveButton(
                     onClick = {
                         deleteEntry = null
                         model.delete(entry)
                     },
                 ) {
-                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteEntry = null }) {
+                NovaSecondaryButton(onClick = { deleteEntry = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -712,14 +723,21 @@ private fun SftpEntryRow(
                 .padding(start = NovaSpacing.md, top = NovaSpacing.sm, bottom = NovaSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = if (entry.isDirectory) Icons.Outlined.Folder else Icons.Outlined.FilePresent,
-                contentDescription = stringResource(
-                    if (entry.isDirectory) R.string.cd_folder else R.string.cd_file,
-                ),
-                modifier = Modifier.size(26.dp),
-                tint = if (entry.isDirectory) NovaTheme.colors.menuFile else NovaTheme.colors.menuPrimary,
-            )
+            Box(Modifier.size(30.dp)) {
+                Icon(
+                    imageVector = if (entry.isDirectory) Icons.Outlined.Folder else Icons.Outlined.FilePresent,
+                    contentDescription = stringResource(if (entry.isSymbolicLink) R.string.sftp_symbolic_link
+                        else if (entry.isDirectory) R.string.cd_folder else R.string.cd_file),
+                    modifier = Modifier.size(26.dp).align(Alignment.Center),
+                    tint = if (entry.isDirectory) NovaTheme.colors.menuFile else NovaTheme.colors.menuPrimary,
+                )
+                if (entry.isSymbolicLink) {
+                    Icon(Icons.AutoMirrored.Outlined.Redo, contentDescription = null,
+                        modifier = Modifier.align(Alignment.BottomStart).size(16.dp)
+                            .background(NovaTheme.colors.backgroundSecondary, CircleShape),
+                        tint = NovaTheme.colors.textPrimary)
+                }
+            }
             Column(
                 modifier = Modifier
                     .padding(start = NovaSpacing.rowSpacing)
@@ -786,7 +804,7 @@ private fun SftpEntryActionsSheet(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!entry.isDirectory) {
+            if (!entry.isDirectory && !entry.isUnavailableLink) {
                 SftpActionSheetRow(
                     Icons.Outlined.Visibility,
                     stringResource(R.string.preview),
@@ -866,7 +884,7 @@ private fun SftpNameDialog(
             )
         },
         confirmButton = {
-            TextButton(
+            NovaDestructiveButton(
                 onClick = {
                     error = onConfirm(value)
                     if (error == null) onDismiss()
@@ -876,7 +894,7 @@ private fun SftpNameDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+            NovaSecondaryButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -941,7 +959,7 @@ private fun SftpEditor(state: SftpConnectionState, model: SftpViewModel) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { closeDialogVisible = false }) {
+                NovaSecondaryButton(onClick = { closeDialogVisible = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -979,7 +997,7 @@ private fun SftpEditor(state: SftpConnectionState, model: SftpViewModel) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Button(
+            NovaPrimaryButton(
                 onClick = { model.saveEditor() },
                 enabled = state.editorDirty && !state.busy,
             ) {
@@ -1111,9 +1129,16 @@ private fun SftpEditor(state: SftpConnectionState, model: SftpViewModel) {
 private fun SftpEntry.details(): String {
     val context = LocalContext.current
     return buildList {
-        if (isDirectory) {
+        if (isSymbolicLink) {
+            add(stringResource(when {
+                isUnavailableLink -> R.string.sftp_link_target_unavailable
+                isDirectory -> R.string.sftp_folder_link
+                else -> R.string.sftp_file_link
+            }))
+        }
+        if (isDirectory && !isSymbolicLink) {
             add(stringResource(R.string.file_details_folder))
-        } else {
+        } else if (!isDirectory && !isUnavailableLink) {
             this@details.size?.let { add(Formatter.formatShortFileSize(context, it)) }
         }
         modifiedAt?.takeIf { it > 0 }?.let {

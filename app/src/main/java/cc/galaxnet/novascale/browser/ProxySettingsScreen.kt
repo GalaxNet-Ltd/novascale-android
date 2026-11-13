@@ -1,6 +1,8 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import android.Manifest
 import android.content.ClipData
@@ -76,7 +78,7 @@ internal fun ProxySettingsScreen(preferences: AppPreferences, controller: LocalP
         Text(stringResource(when (state.status) {
             ProxyStatus.RUNNING -> R.string.proxy_running
             ProxyStatus.STARTING -> R.string.browser_proxy_starting
-            ProxyStatus.STOPPED -> R.string.proxy_stopped
+            ProxyStatus.STOPPED -> if (state.stopReason == ProxyStopReason.DISABLED) R.string.browser_proxy_disabled_title else R.string.proxy_stopped
             ProxyStatus.FAILED -> R.string.proxy_failed
         }))
         if (state.status == ProxyStatus.FAILED) TextButton(onClick = controller::retry) { Text(stringResource(R.string.proxy_retry)) }
@@ -99,7 +101,7 @@ internal fun ProxySettingsScreen(preferences: AppPreferences, controller: LocalP
             label = { Text(stringResource(R.string.proxy_preferred_port)) }, supportingText = { Text(stringResource(R.string.proxy_port_help)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = error)
         if (error) Text(stringResource(R.string.proxy_settings_error), color = MaterialTheme.colorScheme.error)
-        Button(onClick = { requestNotificationPermission(); model.port(port) }) { Text(stringResource(R.string.proxy_apply)) }
+        NovaPrimaryButton(onClick = { requestNotificationPermission(); model.port(port) }) { Text(stringResource(R.string.proxy_apply)) }
         Text(stringResource(R.string.proxy_apply_description), style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(stringResource(R.string.proxy_background), modifier = Modifier.weight(1f))

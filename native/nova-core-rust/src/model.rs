@@ -1,7 +1,7 @@
 // NovaScale for Android
 // Copyright (C) 2026 NovaScale contributors
 //
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
 use serde::{Deserialize, Deserializer, Serialize, de};
 use std::os::fd::{FromRawFd, OwnedFd};
@@ -25,6 +25,18 @@ pub struct StartRequest {
     #[serde(default)]
     pub terminal_theme: Option<TerminalThemeConfig>,
     pub authentication: Authentication,
+    #[serde(default)]
+    pub herdr_executable: String,
+    #[serde(default)]
+    pub herdr_session_name: Option<String>,
+    #[serde(default = "default_enabled")]
+    pub herdr_improve_text_contrast: bool,
+    #[serde(default = "default_enabled")]
+    pub herdr_focused: bool,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 impl StartRequest {
@@ -95,6 +107,8 @@ pub enum Authentication {
 pub enum Command {
     Input {
         base64: String,
+        #[serde(default)]
+        herdr_target_epoch: Option<u64>,
     },
     Resize {
         columns: u32,
@@ -114,6 +128,22 @@ pub enum Command {
         ansi: Vec<u32>,
     },
     Close,
+    HerdrAttach {
+        session_name: String,
+    },
+    HerdrResume,
+    HerdrProbe {
+        nonce: String,
+    },
+    HerdrDisplay {
+        improve_text_contrast: bool,
+        focused: bool,
+    },
+    HerdrAction {
+        request_id: u64,
+        boot_id: String,
+        action: crate::herdr::NativeAction,
+    },
     SftpList {
         request_id: String,
         path: String,

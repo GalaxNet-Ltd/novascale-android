@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.files
 
@@ -17,18 +17,22 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import cc.galaxnet.novascale.R
 import cc.galaxnet.novascale.core.TailnetBackend
-import cc.galaxnet.novascale.core.TailnetDestination
 import cc.galaxnet.novascale.nativecore.NativeEvent
 import cc.galaxnet.novascale.nativecore.NativeSession
 import cc.galaxnet.novascale.remote.HostKeyPrompt
 import cc.galaxnet.novascale.remote.KnownHostStore
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
+import cc.galaxnet.novascale.remote.startRemoteSession
 import cc.galaxnet.novascale.ui.UiText
 import cc.galaxnet.novascale.ui.asUiText
 import cc.galaxnet.novascale.ui.uiPlural
 import cc.galaxnet.novascale.ui.uiText
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,8 +50,16 @@ internal data class SftpEntry(
     val size: Long?,
     val modifiedAt: Long?,
     val permissions: Long?,
+    val targetKind: String? = null,
 ) {
+    val isSymbolicLink: Boolean
+        get() = kind == "symlink"
     val isDirectory: Boolean
+        get() = kind == "directory" || (isSymbolicLink && targetKind == "directory")
+    val isUnavailableLink: Boolean
+        get() = isSymbolicLink && targetKind != "directory" && targetKind != "file"
+    // A folder link must be unlinked, never removed as a directory.
+    val deleteAsDirectory: Boolean
         get() = kind == "directory"
 }
 
@@ -117,6 +129,8 @@ internal class SftpViewModel(
     val state: StateFlow<SftpConnectionState> = mutableState.asStateFlow()
 
     private var nativeSession: NativeSession? = null
+    private var connectJob: Job? = null
+    private var connectionGeneration = 0L
     private var eventJob: Job? = null
     private var lastConfig: RemoteConnectionConfig? = null
     private var partialDownloadUri: Uri? = null
@@ -129,28 +143,46 @@ internal class SftpViewModel(
             mutableState.value = mutableState.value.copy(status = error)
             return
         }
+        val generation = invalidateConnectionAttempt()
         lastConfig = config
-        viewModelScope.launch {
+        connectJob = viewModelScope.launch {
             closeNative()
+            coroutineContext.ensureActive()
+            if (generation != connectionGeneration) return@launch
             mutableState.value = SftpConnectionState(
                 status = uiText(R.string.sftp_status_dialing, config.endpoint),
                 busy = true,
             )
             try {
-                val stream = tailnet.dial(TailnetDestination(config.host.trim(), config.portNumber))
                 val expected = knownHosts.fingerprint(config)
-                val session = withContext(Dispatchers.IO) {
-                    NativeSession.startSftp(stream.fd, config.request(expected))
+                val start = withContext(Dispatchers.IO) { NativeSession.prepareSftp(config.request(expected)) }
+                val session = startRemoteSession(config, tailnet, start)
+                // A cancelled or superseded attempt must never publish a live
+                // session after leave, retry, or host-key rejection.
+                if (generation != connectionGeneration || !coroutineContext.isActive) {
+                    withContext(NonCancellable + Dispatchers.IO) { runCatching { session.close() } }
+                    return@launch
                 }
                 nativeSession = session
                 eventJob = viewModelScope.launch(Dispatchers.IO) { pollEvents(session) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Exception) {
-                mutableState.value = SftpConnectionState(
-                    status = error.message?.asUiText()
-                        ?: uiText(R.string.sftp_status_start_failed),
-                )
+                if (generation == connectionGeneration) {
+                    mutableState.value = SftpConnectionState(
+                        status = error.message?.asUiText()
+                            ?: uiText(R.string.sftp_status_start_failed),
+                    )
+                }
             }
         }
+    }
+
+    private fun invalidateConnectionAttempt(): Long {
+        connectionGeneration += 1
+        connectJob?.cancel()
+        connectJob = null
+        return connectionGeneration
     }
 
     fun acceptHostKey() {
@@ -161,13 +193,15 @@ internal class SftpViewModel(
     }
 
     fun rejectHostKey() {
+        invalidateConnectionAttempt()
+        val old = detachNative()
         mutableState.value = mutableState.value.copy(
             hostKeyPrompt = null,
             busy = false,
             connected = false,
             status = uiText(R.string.host_key_not_trusted),
         )
-        viewModelScope.launch { closeNative() }
+        CoroutineScope(NonCancellable + Dispatchers.IO).launch { runCatching { old?.close() } }
     }
 
     fun list(path: String) {
@@ -180,6 +214,7 @@ internal class SftpViewModel(
     }
 
     fun open(entry: SftpEntry) {
+        if (rejectUnavailableLink(entry)) return
         if (entry.isDirectory) {
             mutableState.value = mutableState.value.copy(searchText = "")
             list(entry.path)
@@ -190,6 +225,12 @@ internal class SftpViewModel(
             )
             runNativeCommand { read(entry.path) }
         }
+    }
+
+    private fun rejectUnavailableLink(entry: SftpEntry): Boolean {
+        if (!entry.isUnavailableLink) return false
+        mutableState.value = mutableState.value.copy(status = uiText(R.string.sftp_link_unavailable))
+        return true
     }
 
     fun parentDirectory() {
@@ -244,7 +285,7 @@ internal class SftpViewModel(
             status = uiText(R.string.sftp_status_deleting, entry.name),
             busy = true,
         )
-        runNativeCommand { delete(entry.path, entry.isDirectory) }
+        runNativeCommand { delete(entry.path, entry.deleteAsDirectory) }
     }
 
     fun upload(uri: Uri) {
@@ -297,6 +338,7 @@ internal class SftpViewModel(
     }
 
     fun download(entry: SftpEntry, destination: Uri) {
+        if (rejectUnavailableLink(entry)) return
         check(!entry.isDirectory)
         viewModelScope.launch(Dispatchers.IO) {
             val session = nativeSession ?: return@launch
@@ -333,6 +375,7 @@ internal class SftpViewModel(
     }
 
     fun preview(entry: SftpEntry, maximumBytes: Long?) {
+        if (rejectUnavailableLink(entry)) return
         check(!entry.isDirectory)
         closePreview()
         val preview = SftpFilePreview(entry = entry)
@@ -473,12 +516,12 @@ internal class SftpViewModel(
     }
 
     fun leaveScreen() {
-        viewModelScope.launch {
-            closeNative()
-            mutableState.value = SftpConnectionState(
-                status = uiText(R.string.sftp_status_disconnected),
-            )
-        }
+        invalidateConnectionAttempt()
+        val old = detachNative()
+        mutableState.value = SftpConnectionState(
+            status = uiText(R.string.sftp_status_disconnected),
+        )
+        CoroutineScope(NonCancellable + Dispatchers.IO).launch { runCatching { old?.close() } }
     }
 
     private fun runNativeCommand(block: NativeSession.() -> Unit) {
@@ -597,6 +640,7 @@ internal class SftpViewModel(
                         size = item.optionalLong("size"),
                         modifiedAt = item.optionalLong("modifiedAt"),
                         permissions = item.optionalLong("permissions"),
+                        targetKind = item.optString("targetKind").takeIf { it in setOf("directory", "file", "other") },
                     ),
                 )
             }
@@ -792,7 +836,8 @@ internal class SftpViewModel(
         }
     }
 
-    private suspend fun closeNative() {
+    /** Detach synchronously so a delayed cleanup cannot close a new session. */
+    private fun detachNative(): NativeSession? {
         eventJob?.cancel()
         eventJob = null
         val session = nativeSession
@@ -800,7 +845,12 @@ internal class SftpViewModel(
         deletePartialDownload()
         deletePreviewDownload()
         previewLimitExceededRequests.clear()
-        withContext(Dispatchers.IO) { runCatching { session?.close() } }
+        return session
+    }
+
+    private suspend fun closeNative() {
+        val old = detachNative()
+        withContext(NonCancellable + Dispatchers.IO) { runCatching { old?.close() } }
     }
 
     private fun deletePartialDownload() {
@@ -822,6 +872,7 @@ internal class SftpViewModel(
     }
 
     override fun onCleared() {
+        invalidateConnectionAttempt()
         eventJob?.cancel()
         deletePartialDownload()
         deletePreviewDownload()

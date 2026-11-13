@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="sftp_symbolic_link">Symbolic link</string>
+    <string name="sftp_folder_link">Folder link</string>
+    <string name="sftp_file_link">File link</string>
+    <string name="sftp_link_target_unavailable">Link · target unavailable</string>
+    <string name="sftp_link_unavailable">The link target is missing, inaccessible, or unsupported. Check the target and refresh to try again.</string>
+    <string name="sftp_delete_link_description">Only this symbolic link will be deleted. Its target and contents will be kept.</string>
+</resources>

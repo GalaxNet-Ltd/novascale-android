@@ -3,12 +3,12 @@
     <string name="home_sessions">Sessions</string>
     <string name="home_tailnet_info">Tailnet details: %1$s</string>
     <string name="home_login_description">Sign in to discover your devices and open terminals, files, and web services across your tailnet.</string>
-    <string name="onboard_network_title">Tailscale, built right in</string>
-    <string name="onboard_network_body">NovaScale connects to your tailnet from inside the app—no separate Tailscale app required. SSH, SFTP, and the browser share this connection. Use Tailscale or your own control server.</string>
-    <string name="onboard_tools_title">A terminal that responds to touch</string>
-    <string name="onboard_tools_body">Use touch gestures as mouse input in mouse-aware apps such as herdr and the tmux terminal multiplexer. Tap, scroll, and drag from your phone. Keep SSH sessions in the Sessions tab and manage files with SFTP.</string>
+    <string name="onboard_network_title">Your tailnets, together</string>
+    <string name="onboard_network_body">Tailscale is built in. Save your personal and work tailnets, including custom control servers, and switch between them. One tailnet connects at a time.</string>
+    <string name="onboard_tools_title">Your remote toolbox</string>
+    <string name="onboard_tools_body">Open SSH terminals and manage files with SFTP on tailnet devices or traditional SSH hosts. Organize hosts into groups, pin favorites, and return to open terminals from Sessions.</string>
     <string name="onboard_browser_title">Your services, a tap away</string>
-    <string name="onboard_browser_body">Preview a project, open Grafana, or watch Jellyfin in the tabbed browser. Switch back to your terminal while keeping your pages ready.</string>
+    <string name="onboard_browser_body">Open private dashboards and everyday websites in the tabbed browser. It uses the shared local proxy automatically. Save favorites and find text without leaving NovaScale.</string>
     <string name="onboard_next">Next</string>
     <string name="onboard_back">Back</string>
     <string name="onboard_start">Get started</string>
@@ -26,4 +26,6 @@
     <string name="section_apple_version">NovaScale for Apple</string>
     <string name="apple_version_link">View on the App Store</string>
     <string name="apple_version_description">Explore NovaScale for your Apple devices.</string>
+    <string name="onboard_herdr_title">Pick up your Herdr sessions</string>
+    <string name="onboard_herdr_body">Open Herdr from a host’s action card and attach to a running session. Switch between tabs, workspaces, and agents, then return to your session from Sessions.</string>
 </resources>

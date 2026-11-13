@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.core
 
@@ -145,7 +145,7 @@ data class TailnetPingResult(
         get() = latencyMilliseconds != null && failure == null
 }
 
-data class TailnetDestination(val host: String, val port: Int) {
+data class TailnetDestination(val host: String, val port: Int, val profileId: String? = null) {
     init {
         require(host.isNotBlank())
         require(port in 1..65535)

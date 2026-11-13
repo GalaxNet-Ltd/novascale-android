@@ -75,7 +75,13 @@ fills from reappearing in browser controls and dialogs.
 - Use bundled JetBrains Mono for every Material typography role and respect user
   font scaling. Android fallback covers CJK and other missing glyphs. Terminal
   preferences, editors, and website typography remain independently controlled.
-- Use semibold/bold sparingly for screen, section, and row titles.
+- Use regular weight for content/list titles and medium weight for headings,
+  section labels and buttons. Avoid synthesized semibold/bold from the bundled
+  regular face. Ordinary toolbar titles use 18 sp; body roles use 15/14/12 sp.
+  Monospace UI text uses zero added letter spacing and disables synthesized font
+  weight/style. Hierarchy comes from size, spacing and semantic color; saved
+  terminal fonts/sizes and ANSI bold/italic rendering remain independent.
+  Keep Android font scaling and terminal/editor font preferences independent.
 - Use the system monospace family for IP addresses, hostnames, ports,
   fingerprints, paths, and terminal content.
 - Terminal defaults to 16 sp on compact Android screens. Pinch zoom remains
@@ -101,7 +107,7 @@ fills from reappearing in browser controls and dialogs.
   translucent fill made from the same color.
 - Semantic color belongs to the symbol: Primary for Terminal and general
   actions, File for folders/files, Info for Ping and previews, Connected for
-  successful state, and Disconnected for destructive actions.
+  successful state, and the theme's contrasting error foreground for destructive actions.
 - Filled icon buttons are reserved for a strong primary action and must use a
   contrasting on-fill foreground, such as the white Play symbol on Primary.
 - Host platform marks are the deliberate exception: their white artwork sits
@@ -295,3 +301,79 @@ Onboarding icons now use a solid blue 80 dp tile, centered above the heading, wi
 Host Web Access uses a bottom sheet with an editable URL, quick ports, and an explicit Open in browser action. The Home tailnet status toolbar button opens a details sheet so dismissing it preserves the current host pane.
 
 Tailnet authentication replaces the setup form with a dedicated waiting view while sign-in completes. Browser sign-in offers Reopen sign-in browser; both methods offer Back to setup and a delayed troubleshooting hint. Controller-required device approval has its own heading and instructions. The setup form offers Browser sign-in and Auth key chips; key entry is masked, not saved, and cleared on submission.
+
+
+## Final UI refinement (2026-11-11)
+
+Primary actions use `NovaPrimaryButton`: the theme’s primary/onPrimary pair,
+12 dp corners, and a minimum 48 dp touch target. Alternatives use
+`NovaSecondaryButton`; delete and session-close confirmations use
+`NovaDestructiveButton`, with a neutral outlined surface and red text. Never put
+red text on a primary-color fill. Error foregrounds are `#B42329` in light mode
+and `#FF8A8E` in dark mode so labels contrast with neutral cards and dialogs.
+Navigation icons, list links and quiet dismissal controls retain their native
+roles. Loading labels/icons inherit the same foreground color as their button.
+
+Filter presets and custom groups share neutral rounded surfaces. Selection uses
+primaryContainer/onPrimaryContainer plus a checkmark. The leading Hosts filter
+entry stays in place. A filtered Hosts header omits the full control-server
+subtitle, retains the active filter and compact profile/status control, and
+returns to its normal presentation for All hosts. It never switches profiles.
+The group sheet supports partial and expanded presentation, with a fixed heading
+and scrolling content.
+
+Add Host and Pro use a shared rounded modal sheet with a drag handle and a
+large height bounded to 90% of the screen, leaving the background visible.
+Add Host keeps Cancel at the left and Save at the right of a padded fixed footer;
+only its form scrolls. Sheet dragging is disabled for this editor so edge scrolls
+cannot pull the modal and rebound. Cancel, Back and backdrop dismissal remain.
+Pro keeps its scrolling content above fixed footer actions and retains sheet dragging.
+The keyboard can expand the host sheet within the remaining available space.
+
+Settings uses stable feature colors: network green/teal, terminal blue,
+appearance violet, Files amber, support gold, and informational/neutral About
+icons. Light and dark roles are paired; status colors still indicate real state.
+
+Browser starts with a compact address card, explicit Go, recent sites and
+Favorites/History entries. Its address editor provides scheme selection
+and local suggestions; typing never navigates. Favorite and history repositories
+are profile-scoped, encrypted, and excluded from backup. History retains the most
+recent 200 distinct addresses; favorites survive history clearing. No external
+favicon lookup or suggestion service is used. Loaded favicons are bounded to
+32 × 32 pixels per tab.
+
+Live browsing keeps a compact address/navigation area, an explicit app-navigation
+reveal control, tabs and Find in Page. Existing WebView/proxy lifecycle boundaries
+remain authoritative. Returning after a foreground proxy owner ends requires an
+explicit Go; returning to a still-live foreground page retains its DOM and history.
+Downloads, certificate exceptions and new upstream proxies are outside this UI
+release.
+
+The browser always uses the application's shared authenticated local proxy.
+There is no separate browser proxy setting. If the user disables Local proxy in
+Settings, entering Browser explains the requirement and offers an explicit
+Turn on local proxy action. Cancelling leaves the setting off. Starting, failed,
+disconnected and unsupported states have specific feedback; Go is enabled only
+after the active profile's proxy and WebView routing are ready.
+
+Cursor-shape selectors use onSurface or onPrimaryContainer with a clear selected
+border/checkmark. Their shape samples must stay legible in either app theme;
+the full terminal preview retains the selected terminal theme's actual colors.
+
+Herdr's accessory row follows the soft keyboard's visibility and terminal focus.
+It has no independent expanded/collapsed state. A new terminal presentation
+requests input once, respecting hardware keyboards; later background returns or
+native navigation do not undo a deliberate dismissal. Back and Hide Keyboard
+hide both, clear one-shot modifiers and return the full area to the terminal.
+The top keyboard action reopens input when needed.
+
+Onboarding introduces saved tailnets and switching (one connected at a time),
+traditional SSH/SFTP hosts, groups/pins, Herdr attachments and native controls,
+and the shared-proxy browser. The Herdr page follows the current debug-only host
+action gate until that feature's release gate is cleared. Copy is localized in
+English, Simplified Chinese and Traditional Chinese.
+
+Enabled action text contrast after this refinement: primary light 6.30:1,
+primary dark 9.07:1; selected row light 8.57:1, dark 9.57:1; destructive text on
+the neutral dialog surface light 5.41:1, dark 6.15:1. Ratios use the actual paired
+theme colors.

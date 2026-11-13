@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.tailnet
 
@@ -97,6 +97,8 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
                     node = null
                     activeConfiguration = null
                     latestLogin = null
+                    pendingLogin?.cancel()
+                    pendingLogin = null
                     resetPeerSnapshot = true
                 }
                 node ?: Novatailnet.newNode(
@@ -117,7 +119,7 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
             // unnecessarily start a fresh interactive login.
             runCatching { parseStatus(activeNode.statusJSON(10_000)) }
                 .getOrNull()
-                ?.let(::applyStatus)
+                ?.let { applyStatus(activeNode, it) }
             Unit
         } catch (error: Exception) {
             synchronized(lifecycleLock) {
@@ -161,23 +163,28 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
                 .getOrNull()
                 ?.loginRequest
                 ?.let {
-                    latestLogin = it
-                    request.complete(it)
+                    synchronized(lifecycleLock) {
+                        if (node === activeNode) { latestLogin = it; request.complete(it) }
+                    }
                 }
-            withTimeout(30_000) { request.await() }
+            withTimeout(30_000) { request.await() }.also {
+                check(node === activeNode) { "Tailnet changed during login" }
+            }
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             throw TailnetBackendException(loginFailureMessage(error), error)
         } finally {
-            pendingLogin = null
+            if (pendingLogin === request) pendingLogin = null
         }
     }
 
     override suspend fun peers(): List<TailnetPeer> = withContext(Dispatchers.IO) {
         val activeNode = node ?: return@withContext emptyList()
         try {
-            parseStatus(activeNode.statusJSON(10_000)).peers.also(::updatePeers)
+            parseStatus(activeNode.statusJSON(10_000)).peers.also { peers ->
+                synchronized(lifecycleLock) { if (node === activeNode) updatePeers(peers) }
+            }
         } catch (error: Exception) {
             throw TailnetBackendException(appContext.getString(R.string.error_read_peers), error)
         }
@@ -221,11 +228,23 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
             appContext.getString(R.string.error_tailnet_not_started),
         )
         try {
+            synchronized(lifecycleLock) {
+                if (node !== activeNode || (destination.profileId != null && activeConfiguration?.profileId != destination.profileId)) {
+                    throw TailnetBackendException(appContext.getString(R.string.tailnets_connection_changed))
+                }
+            }
             val handle = activeNode.dialTCP("${destination.host}:${destination.port}", 30_000)
             val rawFd = handle.takeFD()
             require(rawFd in 0..Int.MAX_VALUE.toLong()) { "Native descriptor is out of range" }
-            DialedStream(connectionId = handle.connectionID(), fd = rawFd.toInt())
+            synchronized(lifecycleLock) {
+                if (node !== activeNode || (destination.profileId != null && activeConfiguration?.profileId != destination.profileId)) {
+                    android.os.ParcelFileDescriptor.adoptFd(rawFd.toInt()).close()
+                    throw TailnetBackendException(appContext.getString(R.string.tailnets_connection_changed))
+                }
+                DialedStream(connectionId = handle.connectionID(), fd = rawFd.toInt())
+            }
         } catch (error: Exception) {
+            if (error is TailnetBackendException) throw error
             throw TailnetBackendException(appContext.getString(R.string.error_dial_tailnet), error)
         }
     }
@@ -300,20 +319,25 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
     }
 
     override fun close() {
-        synchronized(lifecycleLock) {
-            eventGeneration += 1
-            try {
-                node?.close()
-            } finally {
-                node = null
-                activeConfiguration = null
-                latestLogin = null
-                pendingLogin?.cancel()
-                pendingLogin = null
+        try {
+            synchronized(lifecycleLock) {
+                eventGeneration += 1
+                try {
+                    node?.close()
+                } finally {
+                    node = null
+                    activeConfiguration = null
+                    latestLogin = null
+                    pendingLogin?.cancel()
+                    pendingLogin = null
+                }
             }
+        } finally {
+            // Even a teardown error must not expose the previous account's peers
+            // or restart a browser proxy under its obsolete identity.
+            updatePeers(emptyList())
+            updateState(TailnetState.Stopped)
         }
-        updatePeers(emptyList())
-        updateState(TailnetState.Stopped)
     }
 
     private fun startEventPump(activeNode: Node) {
@@ -336,47 +360,44 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
                     }
                     break
                 }
-                if (rawEvent.isNotEmpty()) handleEvent(activeNode, JSONObject(rawEvent))
+                if (rawEvent.isNotEmpty() && node === activeNode && eventGeneration == generation) handleEvent(activeNode, JSONObject(rawEvent))
             }
         }
     }
 
     private fun handleEvent(activeNode: Node, event: JSONObject) {
-        when (event.optString("type")) {
-            "login" -> {
-                val url = event.optString("loginUrl")
-                if (url.startsWith("https://")) {
-                    val request = LoginRequest(url)
-                    latestLogin = request
-                    pendingLogin?.complete(request)
-                    updateState(TailnetState.LoginRequired(request, (currentState as? TailnetState.LoginRequired)?.awaitingApproval == true))
+        val type = event.optString("type")
+        if (type == "peers_changed" || type == "login_finished" ||
+            (type == "state" && event.optString("state") == "running")) {
+            refreshRunningState(activeNode)
+            return
+        }
+        synchronized(lifecycleLock) {
+            if (node !== activeNode) return
+            when (type) {
+                "login" -> {
+                    val url = event.optString("loginUrl")
+                    if (url.startsWith("https://")) {
+                        val request = LoginRequest(url)
+                        latestLogin = request
+                        pendingLogin?.complete(request)
+                        updateState(TailnetState.LoginRequired(request,
+                            (currentState as? TailnetState.LoginRequired)?.awaitingApproval == true))
+                    }
                 }
-            }
-            "state" -> when (event.optString("state")) {
-                "running" -> refreshRunningState(activeNode)
-                "needslogin", "needsmachineauth" -> {
-                    updatePeers(emptyList())
-                    updateState(TailnetState.LoginRequired(latestLogin, event.optString("state") == "needsmachineauth"))
+                "state" -> when (event.optString("state")) {
+                    "needslogin", "needsmachineauth" -> {
+                        updatePeers(emptyList())
+                        updateState(TailnetState.LoginRequired(latestLogin, event.optString("state") == "needsmachineauth"))
+                    }
+                    "starting", "nostate" -> updateState(TailnetState.Starting)
+                    "stopped" -> {
+                        updatePeers(emptyList())
+                        updateState(TailnetState.Stopped)
+                    }
+                    "failed" -> updateState(TailnetState.Failed(FailureCategory.NETWORK,
+                        event.optString("message", appContext.getString(R.string.error_tailnet_failed))))
                 }
-                "starting", "nostate" -> updateState(TailnetState.Starting)
-                "stopped" -> {
-                    updatePeers(emptyList())
-                    updateState(TailnetState.Stopped)
-                }
-                "failed" -> updateState(
-                    TailnetState.Failed(
-                        FailureCategory.NETWORK,
-                        event.optString(
-                            "message",
-                            appContext.getString(R.string.error_tailnet_failed),
-                        ),
-                    ),
-                )
-            }
-            "peers_changed" -> refreshRunningState(activeNode)
-            "login_finished" -> {
-                latestLogin = null
-                refreshRunningState(activeNode)
             }
         }
     }
@@ -384,7 +405,7 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
     private fun refreshRunningState(activeNode: Node) {
         try {
             val status = parseStatus(activeNode.statusJSON(10_000))
-            applyStatus(status)
+            applyStatus(activeNode, status)
         } catch (_: Exception) {
             // A transient status race is followed by another IPN event.
         }
@@ -423,7 +444,12 @@ class GoTailnetBackend(context: Context) : TailnetBackend {
         return ParsedStatus(document.optString("backendState"), self, peers, loginRequest)
     }
 
-    private fun applyStatus(status: ParsedStatus) {
+    private fun applyStatus(activeNode: Node, status: ParsedStatus) = synchronized(lifecycleLock) {
+        if (node !== activeNode) return@synchronized
+        applyCurrentStatus(status)
+    }
+
+    private fun applyCurrentStatus(status: ParsedStatus) {
         status.loginRequest?.let { latestLogin = it }
         if (backendCanBeReportedConnected(status.backendState, status.self != null)) {
             latestLogin = null

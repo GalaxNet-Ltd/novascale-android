@@ -1,4 +1,4 @@
-<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">

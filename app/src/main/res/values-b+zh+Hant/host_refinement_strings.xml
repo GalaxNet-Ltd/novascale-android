@@ -1,0 +1,34 @@
+<resources>
+    <string name="hosts_search">搜尋主機</string>
+    <string name="hosts_search_hint">名稱或位址</string>
+    <string name="hosts_search_empty">沒有符合的主機</string>
+    <string name="hosts_search_clear">清除搜尋</string>
+    <string name="hosts_organize">整理</string>
+    <string name="hosts_groups_none">加入群組</string>
+    <string name="hosts_pin_help">在所有主機中置頂顯示</string>
+    <string name="hosts_group_select">顯示 %1$s 中的主機</string>
+    <string name="hosts_group_members">管理主機</string>
+    <string name="hosts_group_members_title">%1$s 中的主機</string>
+    <string name="hosts_group_members_empty">新增主機或連線至 Tailnet 後，即可在此整理主機。</string>
+    <string name="hosts_group_unavailable">目前無法使用的主機會保留在此群組中。</string>
+    <string name="hosts_group_name_error">請使用不重複且不含控制字元的群組名稱。</string>
+    <string name="hosts_group_assign_new">在此建立群組以整理此主機。</string>
+    <string name="herdr_action_description">持續工作階段</string>
+    <string name="herdr_session_help">選擇 %1$s 上的工作階段。分離連線後，遠端工作會繼續執行。</string>
+    <string name="herdr_session_running">執行中</string>
+    <string name="herdr_session_stopped">連線時啟動</string>
+    <string name="herdr_session_new">新增工作階段</string>
+    <string name="herdr_session_new_help">使用 1–64 個字母、數字、點、連字號或底線。</string>
+    <string name="herdr_session_invalid">請輸入有效的工作階段名稱。</string>
+    <string name="herdr_connect">連線</string>
+    <string name="herdr_refresh">重新整理工作階段</string>
+    <string name="herdr_advanced">進階設定</string>
+    <string name="herdr_executable">Herdr 執行檔</string>
+    <string name="herdr_executable_help">留空以自動尋找 herdr，或輸入其在主機上的完整路徑。</string>
+    <string name="herdr_executable_invalid">請輸入不含換行符號的單一路徑。</string>
+    <string name="herdr_close_title">關閉此連線？</string>
+    <string name="herdr_close_description">中斷此 Herdr 工作階段的連線。遠端程序會繼續執行。如需保留連線以便返回，請選擇分離。</string>
+    <string name="herdr_keyboard">顯示終端鍵盤</string>
+    <string name="herdr_reconnect">重新連線</string>
+    <string name="herdr_choose_another">選擇其他工作階段</string>
+</resources>

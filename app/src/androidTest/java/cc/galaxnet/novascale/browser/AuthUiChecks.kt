@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Instrumentation
@@ -62,7 +62,8 @@ internal object AuthUiChecks {
             activity.setContent {
                 NovaScaleTheme(darkTheme = false) {
                     Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                        TailnetLoginScreen(backend, state.value, true) { connected = true }
+                        TailnetLoginScreen(backend, state.value, true,
+                            profile = cc.galaxnet.novascale.tailnet.TailnetProfile("fixture-auth", "Authentication", cc.galaxnet.novascale.tailnet.DEFAULT_CONTROL_SERVER)) { connected = true }
                     }
                 }
             }

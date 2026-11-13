@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tailnets_title">Tailnet 網路</string>
+    <string name="tailnets_add">新增網路</string>
+    <string name="tailnets_name">名稱</string>
+    <string name="tailnets_custom">自訂伺服器</string>
+    <string name="tailnets_one_active">儲存多個 Tailnet 網路，每次連線一個。</string>
+    <string name="tailnets_add_hint">儲存後，選取此網路進行連線和登入。每個網路設定都使用獨立登入，即使它們使用同一台伺服器。</string>
+    <string name="tailnets_invalid">請輸入名稱及有效的 HTTPS 伺服器位址，位址不能包含憑證、查詢參數或片段。</string>
+    <string name="tailnets_active">目前網路</string>
+    <string name="tailnets_saved">已儲存 · 點按切換</string>
+    <string name="tailnets_options">%1$s 的選項</string>
+    <string name="tailnets_rename">重新命名</string>
+    <string name="tailnets_remove_active_hint">請先切換到其他網路，再刪除此網路。</string>
+    <string name="tailnets_switch_title">切換到 %1$s？</string>
+    <string name="tailnets_switch_description">將關閉使用目前網路的終端機、Herdr、檔案及瀏覽器連線。未儲存的檔案修改將遺失。直連 SSH 工作階段保持開啟，已儲存的登入狀態也會保留。</string>
+    <string name="tailnets_switch">切換</string>
+    <string name="tailnets_remove_title">刪除 %1$s？</string>
+    <string name="tailnets_remove_description">從此裝置刪除該網路設定及其登入狀態、SSH 設定、主機金鑰信任、群組成員關係和置頂記錄。不會刪除伺服器上的帳號。</string>
+    <string name="tailnets_operation_failed">無法完成此操作。其他已儲存的網路不受影響，請重試。</string>
+    <string name="tailnets_retry">重新連線</string>
+    <string name="tailnets_manage">管理網路</string>
+    <string name="tailnets_login_profile">登入 %1$s</string>
+    <string name="tailnets_connection_changed">目前網路已切換。請從目前網路重新開啟主機。</string>
+    <string name="tailnets_status_description">網路 %1$s：%2$s。切換或管理網路。</string>
+</resources>

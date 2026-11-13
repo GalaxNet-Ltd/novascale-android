@@ -44,8 +44,10 @@ fn createLibC(
         \\
         \\kernel32_lib_dir=
         \\
-        \\gcc_dir=
-    , .{ sysroot, sysroot, triple, sysroot, triple, api });
+        \\cc_dir={s}/usr/lib/{s}/{d}
+        \\
+        \\darwin_sdk_dir=
+    , .{ sysroot, sysroot, triple, sysroot, triple, api, sysroot, triple, api });
     const generated = b.addWriteFiles();
     return generated.add(b.fmt("android-libc-{s}-{d}.conf", .{ triple, api }), contents);
 }
@@ -65,10 +67,11 @@ pub fn build(b: *std.Build) void {
     const ghostty = b.dependency("ghostty", .{
         .target = target,
         .optimize = optimize,
-        .simd = false,
+        // Use the pinned Highway/simdutf accelerators with upstream CPU dispatch.
+        .simd = true,
     });
     const module = b.createModule(.{
-        .root_source_file = b.path("src/nova_ghostty.zig"),
+        .root_source_file = b.path("src/png.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -76,7 +79,10 @@ pub fn build(b: *std.Build) void {
         .unwind_tables = .none,
         .omit_frame_pointer = true,
     });
-    module.addImport("ghostty-vt", ghostty.module("ghostty-vt"));
+    module.addIncludePath(ghostty.path("include"));
+    module.addCSourceFile(.{ .file = b.path("src/nova_vt.c"), .flags = &.{
+        "-std=c11", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror",
+    } });
     // Reuse the exact PNG decoder package pinned by Ghostty; no copied decoder.
     const wuffs = ghostty.builder.lazyDependency("wuffs", .{ .target = target, .optimize = optimize }) orelse return;
     module.addImport("wuffs", wuffs.module("wuffs"));
@@ -90,15 +96,31 @@ pub fn build(b: *std.Build) void {
     library.link_data_sections = true;
     library.link_gc_sections = true;
 
-    const ndk = b.graph.env_map.get("ANDROID_NDK_HOME") orelse
-        b.graph.env_map.get("ANDROID_NDK_ROOT") orelse
+    const ndk = b.graph.environ_map.get("ANDROID_NDK_HOME") orelse
+        b.graph.environ_map.get("ANDROID_NDK_ROOT") orelse
         @panic("ANDROID_NDK_HOME is required");
     const sysroot = b.pathJoin(&.{ ndk, "toolchains", "llvm", "prebuilt", ndkPrebuiltTag(), "sysroot" });
     const libc_file = createLibC(b, target.result, api, sysroot);
     library.setLibCFile(libc_file);
-    library.linkLibC();
+    const vt = ghostty.artifact("ghostty-vt-static");
+    vt.setLibCFile(libc_file);
+    b.installArtifact(vt);
     b.installArtifact(library);
 
-    const fmt = b.addFmt(.{ .paths = &.{ "build.zig", "build.zig.zon", "src" } });
+    // A static archive does not bundle the module's transitive libraries.
+    // Install the same upstream artifacts for the final Rust/NDK link.
+    const simdutf = ghostty.builder.lazyDependency("simdutf", .{
+        .target = target,
+        .optimize = optimize,
+        .no_libcxx = true,
+    }) orelse return;
+    const highway = ghostty.builder.lazyDependency("highway", .{
+        .target = target,
+        .optimize = optimize,
+    }) orelse return;
+    b.installArtifact(simdutf.artifact("simdutf"));
+    b.installArtifact(highway.artifact("highway"));
+
+    const fmt = b.addFmt(.{ .paths = &.{ b.path("build.zig"), b.path("build.zig.zon"), b.path("src") }, .check = true });
     b.step("fmt", "Check Zig formatting").dependOn(&fmt.step);
 }

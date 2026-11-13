@@ -1,0 +1,17 @@
+<resources>
+    <string name="pro_debug_title">Debug: Pro status</string>
+    <string name="pro_debug_description">Test limits without a purchase. Saved across restarts.</string>
+    <string name="pro_debug_default">Default</string>
+    <string name="pro_debug_free">Free</string>
+    <string name="pro_debug_pro">Pro</string>
+    <string name="herdr_debug_title">Debug: Herdr usage</string>
+    <string name="herdr_debug_free">Free daily allowance is enforced.</string>
+    <string name="herdr_debug_unlimited">Unlimited access. Pro visits do not consume the free allowance.</string>
+    <string name="herdr_debug_day">Usage day: %1$s. Next reset: %2$s at local midnight.</string>
+    <string name="herdr_debug_counts">%1$d / %2$d used · %3$d reserved · %4$d available</string>
+    <string name="herdr_debug_progress">Toward the next free visit: %1$.1f / %2$d seconds</string>
+    <string name="herdr_debug_attachments">Retained attachments: %1$d · active: %2$d\nAlready counted or admitted with Pro: %3$d</string>
+    <string name="herdr_debug_explanation">Only connected, foreground use counts. Short visits accumulate. Closing an attachment releases its reservation; it does not reset accumulated time or used visits. These local stats update each second.</string>
+    <string name="herdr_debug_loading">Loading usage…</string>
+    <string name="herdr_debug_storage_error">Could not update usage storage. Any counts shown are from the last successful update.</string>
+</resources>

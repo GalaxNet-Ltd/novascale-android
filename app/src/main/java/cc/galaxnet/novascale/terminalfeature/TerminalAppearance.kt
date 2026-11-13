@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
 
@@ -25,6 +25,7 @@ internal data class TerminalSettings(
     val fontId: String = TerminalFontOption.SYSTEM.id,
     val fontSizeSp: Float = DEFAULT_TERMINAL_FONT_SIZE_SP,
     val cursorShapeId: String = TerminalCursorShapeOption.BEAM.id,
+    val herdrImproveTextContrast: Boolean = true,
 ) {
     val font: TerminalFontOption
         get() = TerminalFontOption.fromId(fontId)

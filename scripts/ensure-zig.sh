@@ -2,9 +2,9 @@
 set -euo pipefail
 
 android_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="0.15.2"
+version="0.17.0"
 archive_name="zig-x86_64-linux-${version}.tar.xz"
-expected_sha="02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239"
+expected_sha="1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026"
 tools_dir="$android_root/native/nova-ghostty-zig/.tools"
 install_dir="$tools_dir/zig-${version}"
 archive="$tools_dir/$archive_name"

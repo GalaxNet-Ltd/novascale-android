@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.tailnet
 
@@ -39,7 +39,7 @@ internal data class TailnetUiState(
  */
 internal class TailnetViewModel(
     private val backend: TailnetBackend,
-    restoreConfiguration: TailnetConfiguration,
+    restoreConfiguration: TailnetConfiguration? = null,
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(
         TailnetUiState(
@@ -59,7 +59,7 @@ internal class TailnetViewModel(
         peerRegistration = backend.addPeerListener { peers ->
             mutableUiState.update { it.copy(peers = peers) }
         }
-        if (shouldRestoreTailnetAtLaunch(backend.currentState)) {
+        if (restoreConfiguration != null && shouldRestoreTailnetAtLaunch(backend.currentState)) {
             // Restoration is pending before start() dispatches to IO. Do not flash a login prompt.
             mutableUiState.update { it.copy(connection = TailnetState.Starting) }
             viewModelScope.launch {
@@ -101,7 +101,7 @@ internal class TailnetViewModel(
 
     class Factory(
         private val backend: TailnetBackend,
-        private val restoreConfiguration: TailnetConfiguration,
+        private val restoreConfiguration: TailnetConfiguration? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

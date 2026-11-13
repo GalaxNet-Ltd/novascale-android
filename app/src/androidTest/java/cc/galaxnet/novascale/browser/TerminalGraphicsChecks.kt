@@ -1,4 +1,4 @@
-// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Instrumentation
@@ -9,7 +9,7 @@ import android.util.Base64
 import cc.galaxnet.novascale.core.GhosttySnapshotParser
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
 import cc.galaxnet.novascale.nativecore.NativeCore
-import cc.galaxnet.novascale.terminal.TerminalCanvasView
+import cc.galaxnet.novascale.terminal.NovaTerminalView
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -42,6 +42,13 @@ internal object TerminalGraphicsChecks {
             val bytes = NativeCore.nativeTerminalGraphicsProbe(b64(("\u001b[?25l" + commands).toByteArray()), scroll)
             check(bytes.isNotEmpty()) { "Native graphics probe failed" }
             return GhosttySnapshotParser.parse(bytes)
+        }
+        // Native input is deliberately split into 17-byte reads by the probe.
+        // Verify the upgraded Unicode engine and our packed grapheme records
+        // preserve combining marks, wide CJK and a joined emoji across reads.
+        val unicode = "e\u0301界👩\u200d💻!"
+        check(snapshot("12345678901234" + unicode).accessibleText().contains(unicode)) {
+            "Native Unicode/grapheme snapshot changed during the VT upgrade"
         }
         val rgba = byteArrayOf(-1, 0, 0, -1, 0, -1, 0, -1, 0, 0, -1, -1, -1, -1, -1, 0)
         val raw = command("a=T,f=32,s=2,v=2,i=7,c=2,r=2,C=1", rgba)
@@ -88,15 +95,47 @@ internal object TerminalGraphicsChecks {
         check(snapshot(command("a=T,f=32,o=z,s=2,v=2,i=2", bomb) + raw).images.size == 1) { "Decompression limit did not recover" }
         val crop = snapshot(raw + command("a=p,i=7,p=2,x=1,y=0,w=1,h=1,c=3,r=2,z=-1,C=1"))
         check(crop.images.any { it.z == -1 && it.sourceX == 1 && it.sourceWidth == 1 && it.width == 3f }) { "Crop/scale/z placement failed" }
-        check(snapshot(raw + command("a=p,i=7,p=2,w=4294967295,h=1,C=1")).images.size == 1) { "Oversized crop was accepted" }
+        // Follow the stable library's command semantics: oversized source crops
+        // are clipped by Ghostty. The exported rectangle must remain in bounds.
+        val clipped = snapshot(raw + command("a=p,i=7,p=2,w=4294967295,h=1,C=1"))
+            .images.single { it.placementId == 2L }
+        check(clipped.sourceX == 0 && clipped.sourceWidth == 2 && clipped.sourceHeight == 1) {
+            "Ghostty did not clip the source crop to the image"
+        }
+        check(snapshot(raw + command("a=p,i=7,p=2,c=4294967295,r=4294967295,C=1") + "ALIVE")
+            .accessibleText().contains("ALIVE")) { "Oversized placement prevented text rendering" }
+        val parent = command("a=T,f=32,s=2,v=2,i=70,p=5,c=2,r=2,C=1", rgba)
+        val child = command("a=T,f=32,s=2,v=2,i=71,p=6,P=70,Q=5,H=3,V=2,c=1,r=1,C=1", rgba)
+        val relative = snapshot(parent + child).images.single { it.image.id == 71L }
+        check(relative.left == 3f && relative.top == 2f && relative.width == 1f && relative.height == 1f) {
+            "Ghostty 1.0 relative placement geometry was lost"
+        }
+        check(snapshot(parent + child + command("a=d,d=I,i=70")).images.none { it.image.id == 71L }) {
+            "Deleting the parent retained its relative placement"
+        }
+        // Explicit frame selection uses upstream behavior. Automatic animation
+        // playback is not scheduled by the Android renderer.
+        val selectedFrame = ByteArray(16) { -1 }
+        val animation = raw + command("a=f,f=32,s=2,v=2,i=7", selectedFrame) + command("a=a,i=7,c=2")
+        check(snapshot(animation).images.single().image.rgba.contentEquals(selectedFrame)) {
+            "Explicit Kitty frame selection did not update the image generation"
+        }
+        val manyImages = buildString {
+            repeat(140) { append(command("a=T,f=32,s=1,v=1,i=${it + 1},c=1,r=1,C=1", byteArrayOf(-1, 0, 0, -1))) }
+        }
+        check(snapshot(manyImages).images.map { it.image.id }.distinct().size == 128) { "Export image budget changed" }
+        val manyPlacements = raw + buildString {
+            repeat(520) { append(command("a=p,i=7,p=${it + 1},c=1,r=1,C=1")) }
+        }
+        check(snapshot(manyPlacements).images.size == 512) { "Export placement budget changed" }
         val replacement = snapshot(raw + command("a=T,f=32,s=1,v=1,i=7,c=2,r=2,C=1", byteArrayOf(0, -1, 0, -1)))
         check(replacement.images.all { it.image.width == 1 && it.image.rgba.contentEquals(byteArrayOf(0, -1, 0, -1)) }) { "Image ID replacement retained pixels" }
 
         // Explicit pixel assertions detect stale transparent compositing and paint after clear.
-        lateinit var view: TerminalCanvasView
+        lateinit var view: NovaTerminalView
         var cw = 8; var ch = 16
         test.runOnMainSync {
-            view = TerminalCanvasView(activity)
+            view = NovaTerminalView(activity)
             view.setTerminalCallbacks(null, null, onResizePixels = { _, _, w, h -> cw = w; ch = h })
             activity.setContentView(view)
             view.layout(0, 0, 640, 384)

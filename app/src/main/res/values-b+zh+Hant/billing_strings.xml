@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pro_title">Android Pro</string>
+    <string name="pro_settings_summary">一次購買，支持持續開發。</string>
+    <string name="pro_support_description">一次購買 Pro，支持 NovaScale 的持續開發，並解鎖以下功能。無需訂閱。</string>
+    <string name="pro_open_source_title">開源</string>
+    <string name="pro_open_source_description">NovaScale Android 版是開源軟體。歡迎 fork 原始碼，修改或移除使用限制，並自行建置您自己的版本。</string>
+    <string name="pro_community_title">社群版</string>
+    <string name="pro_community_description">此開源版本已包含全部本機功能。</string>
+    <string name="pro_community_included">無需購買。</string>
+    <string name="pro_tailnets">更多 Tailnet</string>
+    <string name="pro_tailnets_detail">儲存多個網路，每次啟用一個。</string>
+    <string name="pro_groups">不限數量的自訂群組</string>
+    <string name="pro_groups_detail">按需建立群組，整理主機。</string>
+    <string name="pro_herdr">每日 Herdr 存取不限次數</string>
+    <string name="pro_herdr_detail">全天隨時開始新的遠端存取。</string>
+    <string name="pro_tailnets_limit">免費版可儲存一個 Tailnet。</string>
+    <string name="pro_groups_limit">免費版可建立三個自訂主機群組。</string>
+    <string name="pro_herdr_limit">免費版每天可存取 Herdr 三次。已開始的存取可繼續使用。</string>
+    <string name="pro_buy_price">購買 Pro — %1$s</string>
+    <string name="pro_buy">購買 Pro</string>
+    <string name="pro_later">稍後再說</string>
+    <string name="pro_purchase_scope">僅限 Android 版。使用同一 Google Play 帳號還原購買。</string>
+    <string name="pro_restore">還原購買</string>
+    <string name="pro_restored">已還原 Android Pro 購買。</string>
+    <string name="pro_unlocked">已解鎖 Android Pro。感謝支持 NovaScale。</string>
+    <string name="pro_pending">付款正在處理中。Google Play 確認後將解鎖 Pro。</string>
+    <string name="pro_unavailable">目前無法購買。您仍可繼續使用免費功能。</string>
+    <string name="pro_network_error">無法連線至商店。先前已驗證的 Pro 權限仍然可用。</string>
+    <string name="pro_verification_error">暫時無法驗證購買。再次購買前，請先嘗試還原購買。</string>
+    <string name="pro_storage_error">無法在此裝置儲存購買狀態。重新啟動後如有需要，請還原購買。</string>
+    <string name="pro_retry">重試</string>
+    <string name="pro_privacy">隱私</string>
+    <string name="pro_terms">條款</string>
+    <string name="pro_herdr_remaining">可用 %1$d 次免費 Herdr 存取 · 已預留 %2$d 次。連線使用滿 30 秒計為一次；短時存取會累計。</string>
+    <string name="pro_herdr_reset">新存取額度將在本地時間 %1$s 零點重設。已開始的存取可繼續。</string>
+    <string name="pro_replace_tailnet">取代目前 Tailnet</string>
+    <string name="pro_replace_tailnet_description">以新身分取代目前網路。相關本地工具將關閉；取代成功後，舊網路的登入、SSH 憑證及主機信任記錄將移除。取消可保留目前網路。</string>
+    <string name="pro_use_free_tailnet">設為免費 Tailnet</string>
+    <string name="pro_use_free_tailnet_description">切換至此網路並將其設為免費 Tailnet。其他網路設定將保留；在額外網路間切換需要 Pro。</string>
+    <string name="pro_status_active">Pro 已啟用</string>
+    <string name="pro_status_free">免費方案 · 1 個 Tailnet、3 個群組、每天 3 次 Herdr 存取</string>
+</resources>

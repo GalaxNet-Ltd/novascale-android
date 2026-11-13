@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="browser_proxy_disabled_title">Local proxy is off</string>
+    <string name="browser_proxy_disabled_body">The browser uses NovaScale’s shared local proxy. Turn it on to browse.</string>
+    <string name="browser_enable_proxy">Turn on local proxy</string>
+    <string name="browser_tailnet_required">Connect a tailnet to browse through its connection.</string>
+    <string name="browser_manage_tailnets">Manage tailnets</string>
+    <string name="browser_proxy_failed_body">The local proxy could not start. Retry to reconnect it.</string>
+    <string name="browser_proxy_preparing">Preparing the local proxy…</string>
+</resources>

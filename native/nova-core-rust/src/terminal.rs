@@ -1,7 +1,7 @@
 // NovaScale for Android
 // Copyright (C) 2026 NovaScale contributors
 //
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
 use crate::model::TerminalThemeConfig;
 
@@ -16,6 +16,7 @@ const DEFAULT_BACKGROUND: [u8; 3] = [0x0d, 0x11, 0x17];
 #[cfg(feature = "ghostty")]
 unsafe extern "C" {
     fn nova_ghostty_create(columns: u32, rows: u32, max_scrollback: u32) -> usize;
+    fn nova_ghostty_create_bounded(columns: u32, rows: u32, max_scrollback: u32) -> usize;
     fn nova_ghostty_destroy(handle: usize);
     fn nova_ghostty_write(handle: usize, data: *const u8, data_len: usize) -> u64;
     fn nova_ghostty_resize(
@@ -39,6 +40,14 @@ unsafe extern "C" {
     fn nova_ghostty_drain_pty(handle: usize, output: *mut u8, capacity: usize) -> usize;
     fn nova_ghostty_snapshot(handle: usize, known_revision: u64, out_size: *mut usize)
     -> *const u8;
+    fn nova_ghostty_frame(
+        handle: usize,
+        frame_revision: u64,
+        image_revision: u64,
+        out_size: *mut usize,
+    ) -> *const u8;
+    fn nova_ghostty_hold_remaining_ms(handle: usize) -> i64;
+    fn nova_ghostty_tick(handle: usize) -> u64;
 }
 
 #[cfg(feature = "ghostty")]
@@ -51,6 +60,21 @@ pub struct TerminalState {
 impl TerminalState {
     pub fn new(columns: u32, rows: u32, theme: Option<&TerminalThemeConfig>) -> Self {
         let handle = unsafe { nova_ghostty_create(columns, rows, 10_000) };
+        Self::from_handle(handle, theme)
+    }
+
+    pub fn try_new_herdr(
+        columns: u32,
+        rows: u32,
+        theme: Option<&TerminalThemeConfig>,
+    ) -> Option<Self> {
+        // Herdr keeps scrollback on the remote server. Bound auxiliary snapshot,
+        // reply and clipboard buffers independently of the terminal allocator.
+        let handle = unsafe { nova_ghostty_create_bounded(columns, rows, 0) };
+        (handle != 0).then(|| Self::from_handle(handle, theme))
+    }
+
+    fn from_handle(handle: usize, theme: Option<&TerminalThemeConfig>) -> Self {
         assert_ne!(handle, 0, "libghostty-vt terminal initialization failed");
         let mut state = Self { handle };
         if let Some(theme) = theme {
@@ -171,6 +195,14 @@ impl TerminalState {
             partial: Vec::new(),
             viewport_offset: 0,
         }
+    }
+
+    pub fn try_new_herdr(
+        columns: u32,
+        rows: u32,
+        theme: Option<&TerminalThemeConfig>,
+    ) -> Option<Self> {
+        Some(Self::new(columns, rows, theme))
     }
 
     pub fn resize(&mut self, columns: u32, rows: u32) -> u64 {
@@ -375,7 +407,6 @@ impl TerminalState {
     pub fn take_clipboard(&mut self) -> Option<String> {
         #[cfg(feature = "ghostty")]
         {
-            use base64::Engine;
             let size = unsafe {
                 nova_ghostty_take_clipboard(
                     self.handle,
@@ -383,7 +414,7 @@ impl TerminalState {
                     0,
                 )
             };
-            if size == 0 || size > 1_398_104 {
+            if size == 0 || size > 1024 * 1024 {
                 return None;
             }
             let mut encoded = vec![0u8; size];
@@ -393,17 +424,63 @@ impl TerminalState {
             if count == 0 {
                 return None;
             }
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(&encoded[..count])
-                .ok()?;
-            if bytes.len() > 1024 * 1024 {
-                return None;
-            }
-            String::from_utf8(bytes).ok()
+            encoded.truncate(count);
+            String::from_utf8(encoded).ok()
         }
         #[cfg(not(feature = "ghostty"))]
         {
             None
         }
+    }
+
+    pub fn frame_bytes_since(&mut self, frame: u64, images: u64) -> Vec<u8> {
+        #[cfg(feature = "ghostty")]
+        {
+            let mut size = 0usize;
+            let pointer = unsafe { nova_ghostty_frame(self.handle, frame, images, &mut size) };
+            if pointer.is_null() || !(80..=32 * 1024 * 1024).contains(&size) {
+                return Vec::new();
+            }
+            unsafe { std::slice::from_raw_parts(pointer, size) }.to_vec()
+        }
+        #[cfg(not(feature = "ghostty"))]
+        {
+            let _ = (frame, images);
+            self.snapshot_bytes()
+        }
+    }
+
+    pub fn render_hold_remaining_ms(&self) -> Option<u64> {
+        #[cfg(feature = "ghostty")]
+        {
+            u64::try_from(unsafe { nova_ghostty_hold_remaining_ms(self.handle) }).ok()
+        }
+        #[cfg(not(feature = "ghostty"))]
+        {
+            None
+        }
+    }
+
+    pub fn tick_render_hold(&mut self) -> Option<u64> {
+        #[cfg(feature = "ghostty")]
+        {
+            match unsafe { nova_ghostty_tick(self.handle) } {
+                0 => None,
+                revision => Some(revision),
+            }
+        }
+        #[cfg(not(feature = "ghostty"))]
+        {
+            None
+        }
+    }
+}
+
+/// An idle terminal has no timer. A held frame is released even if its writer
+/// crashes or stops sending bytes. Cancellation is owned by the session loop.
+pub async fn wait_for_render_hold(remaining_ms: Option<u64>) {
+    match remaining_ms {
+        Some(ms) => tokio::time::sleep(std::time::Duration::from_millis(ms)).await,
+        None => std::future::pending::<()>().await,
     }
 }

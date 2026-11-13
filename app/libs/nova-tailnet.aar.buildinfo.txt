@@ -5,4 +5,4 @@ targets=android/arm64,android/amd64 androidapi=28 tags=ts_omit_cachenetmap
 linkmode=external max-page-size=16384 trimpath=true
 6cfca9d1a086f14fd1674ce61dae63515b9fddd358c01b51c2596851666a4d7b  go.mod
 407e3870010f708e875cab272ec870fd33b8c6bf9fdd8c0c27904a928b901d0e  go.sum
-2de67031b3b50f8f29244ed01e8b16ad4fd3bf6833ba9858b67344ef3dc9894e  /home/fortitude/glx/novascale/android/app/libs/nova-tailnet.aar
+ad9d466b999f69b5235e2b3033189d5451fde3163a9f71fd0219a1946e1143af  /data/fortitude/glx/novascale/oss/app/libs/nova-tailnet.aar

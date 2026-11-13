@@ -3,12 +3,12 @@
     <string name="home_sessions">会话</string>
     <string name="home_tailnet_info">Tailnet 详情：%1$s</string>
     <string name="home_login_description">登录以发现您的设备，并访问 Tailnet 中的终端、文件和 Web 服务。</string>
-    <string name="onboard_network_title">内置 Tailscale 连接</string>
-    <string name="onboard_network_body">NovaScale 可直接在应用内连接您的 Tailnet，无需另装 Tailscale 应用。SSH、SFTP 和浏览器共享此连接，支持 Tailscale 或自定义控制服务器。</string>
-    <string name="onboard_tools_title">让终端响应触控</string>
-    <string name="onboard_tools_body">通过触控手势操作支持鼠标的应用，如 herdr 和终端复用器 tmux。在手机上点击、滚动和拖动；在「会话」标签页保留 SSH 会话，并通过 SFTP 管理文件。</string>
+    <string name="onboard_network_title">随时切换你的 Tailnet</string>
+    <string name="onboard_network_body">内置 Tailscale。保存个人和工作 Tailnet，支持自定义控制服务器，并随时切换。每次连接一个 Tailnet。</string>
+    <string name="onboard_tools_title">你的远程工具箱</string>
+    <string name="onboard_tools_body">在 Tailnet 设备或传统 SSH 主机上打开终端并通过 SFTP 管理文件。使用分组和置顶整理主机，从“会话”返回已打开的终端。</string>
     <string name="onboard_browser_title">轻触即可访问您的服务</string>
-    <string name="onboard_browser_body">在多标签浏览器中预览项目、打开 Grafana 或观看 Jellyfin。切回终端时，网页仍为您保留。</string>
+    <string name="onboard_browser_body">在多标签浏览器中打开私有仪表盘和日常网站。浏览器会自动使用共享本地代理，还可保存收藏和查找页面文字。</string>
     <string name="onboard_next">下一步</string>
     <string name="onboard_back">上一步</string>
     <string name="onboard_start">开始使用</string>
@@ -26,4 +26,6 @@
     <string name="section_apple_version">Apple 版 NovaScale</string>
     <string name="apple_version_link">在 App Store 查看</string>
     <string name="apple_version_description">探索适用于 Apple 设备的 NovaScale。</string>
+    <string name="onboard_herdr_title">继续你的 Herdr 会话</string>
+    <string name="onboard_herdr_body">从主机操作卡片打开 Herdr 并连接正在运行的会话。切换标签、工作区和智能体，再从“会话”返回继续操作。</string>
 </resources>

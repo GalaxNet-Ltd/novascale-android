@@ -2,9 +2,11 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +32,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.Icon
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,6 +76,7 @@ internal fun TerminalSettingsScreen(
     onImportItermTheme: (android.net.Uri) -> Unit,
     onRemoveImportedTheme: (TerminalThemePalette) -> Unit,
     onReset: () -> Unit,
+    onHerdrImproveTextContrast: (Boolean) -> Unit,
 ) {
     val importTheme = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) onImportItermTheme(uri)
@@ -109,7 +119,7 @@ internal fun TerminalSettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(NovaSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
+            NovaPrimaryButton(
                 onClick = {
                     importTheme.launch(
                         arrayOf("application/xml", "text/xml", "application/octet-stream", "text/plain"),
@@ -179,7 +189,6 @@ internal fun TerminalSettingsScreen(
                 TerminalCursorShapeChip(
                     option = option,
                     selected = option == state.settings.cursorShape,
-                    cursorColor = Color(theme.cursor),
                     onClick = { onCursorShape(option) },
                 )
             }
@@ -189,6 +198,20 @@ internal fun TerminalSettingsScreen(
             style = MaterialTheme.typography.bodySmall,
             color = NovaTheme.colors.textSecondary,
         )
+
+        HorizontalDivider()
+        NovaSectionLabel(stringResource(R.string.herdr_appearance_section))
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .toggleable(state.settings.herdrImproveTextContrast, role = Role.Switch, onValueChange = onHerdrImproveTextContrast),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(NovaSpacing.md)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.herdr_improve_text_contrast), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.herdr_improve_text_contrast_help), style = MaterialTheme.typography.bodySmall,
+                    color = NovaTheme.colors.textSecondary)
+            }
+            Switch(checked = state.settings.herdrImproveTextContrast, onCheckedChange = null)
+        }
 
         state.message?.let {
             Text(it.asString(), style = MaterialTheme.typography.bodyMedium, color = NovaTheme.colors.primary)
@@ -249,37 +272,42 @@ private fun TerminalAppearancePreview(
 }
 
 @Composable
-private fun TerminalCursorShapeChip(
+internal fun TerminalCursorShapeChip(
     option: TerminalCursorShapeOption,
     selected: Boolean,
-    cursorColor: Color,
     onClick: () -> Unit,
 ) {
+    // This is a shape selector on an app surface, not a terminal-color sample.
+    // The full terminal preview above still uses the chosen theme's cursor color.
+    val foreground = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
     Surface(
         modifier = Modifier
             .width(126.dp)
             .heightIn(min = 72.dp)
-            .clickable(onClick = onClick),
+            .selectable(selected, role = Role.RadioButton, onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = if (selected) NovaTheme.colors.primary.copy(alpha = 0.14f) else NovaTheme.colors.backgroundSecondary,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
         border = BorderStroke(
-            1.dp,
+            if (selected) 2.dp else 1.dp,
             if (selected) NovaTheme.colors.primary else NovaTheme.colors.borderSubtle,
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(NovaSpacing.sm),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
-        ) {
-            TerminalCursorPreview(option.previewShape, cursorColor)
-            Text(
-                option.localizedDisplayName(),
-                color = NovaTheme.colors.textPrimary,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-            )
+        Box {
+            if (selected) Icon(Icons.Outlined.Check, null, Modifier.align(Alignment.TopEnd).padding(6.dp).size(14.dp), tint = foreground)
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(NovaSpacing.sm),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
+            ) {
+                TerminalCursorPreview(option.previewShape, foreground)
+                Text(
+                    option.localizedDisplayName(),
+                    color = foreground,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 2,
+                )
+            }
         }
     }
 }
@@ -381,7 +409,7 @@ private fun TerminalFontRow(
                 Text(
                     font.localizedDisplayName(),
                     fontFamily = terminalComposeFont(font),
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                     color = NovaTheme.colors.textPrimary,
                 )
                 Text(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0
 """Run inside a NovaScale SSH session to exercise direct Kitty image uploads."""
 import argparse
 import base64

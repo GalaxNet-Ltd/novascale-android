@@ -18,6 +18,7 @@ captures/
 native/generated/
 native/**/.tools/
 native/**/.zig-cache/
+native/**/zig-pkg/
 native/**/zig-out/
 app/libs/*.aar
 

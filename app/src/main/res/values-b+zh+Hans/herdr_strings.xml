@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="herdr_title">Herdr 远程</string>
+    <string name="herdr_detach">暂时离开</string>
+    <string name="herdr_close">关闭</string>
+    <string name="herdr_choose_session">选择 Herdr 会话</string>
+    <string name="herdr_default_session">默认</string>
+    <string name="herdr_session_name">新会话名称</string>
+    <string name="herdr_open_session">打开会话</string>
+    <string name="herdr_retry">重试</string>
+    <string name="herdr_input_stale">发送输入前画面发生了变化，请重试。</string>
+</resources>

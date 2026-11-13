@@ -3,5 +3,6 @@
     <application>
         <!-- This component runs under the test APK's own UID, outside the target. -->
         <activity android:name="cc.galaxnet.novascale.browser.HostileProxyActivity" android:exported="true" />
+        <activity android:name="cc.galaxnet.novascale.browser.SessionLauncherActivity" android:exported="true" />
     </application>
 </manifest>

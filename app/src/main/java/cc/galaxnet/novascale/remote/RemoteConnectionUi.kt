@@ -2,9 +2,13 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.remote
+
+import cc.galaxnet.novascale.ui.NovaSecondaryButton
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +48,7 @@ internal fun RemoteConnectionForm(
     connectLabel: String,
     onConnect: () -> Unit,
     showHostField: Boolean = true,
+    showSubmit: Boolean = true,
 ) {
     var peerMenu by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -172,7 +177,7 @@ internal fun RemoteConnectionForm(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             )
         }
-        Button(onClick = onConnect, enabled = enabled) {
+        if (showSubmit) NovaPrimaryButton(onClick = onConnect, enabled = enabled) {
             Text(connectLabel)
         }
     }
@@ -212,14 +217,14 @@ internal fun HostKeyConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onTrust) {
+            NovaPrimaryButton(onClick = onTrust) {
                 Text(stringResource(
                     if (prompt.changed) R.string.trust_new_key else R.string.trust_and_reconnect,
                 ))
             }
         },
         dismissButton = {
-            TextButton(onClick = onReject) { Text(stringResource(R.string.action_cancel)) }
+            NovaSecondaryButton(onClick = onReject) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

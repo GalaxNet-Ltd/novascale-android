@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.nativecore
 
@@ -22,13 +22,18 @@ internal object NativeCore {
     @JvmStatic external fun nativeBuildInfo(): String
     @JvmStatic external fun nativeStartSsh(fd: Int, request: String): String
     @JvmStatic external fun nativeStartSftp(fd: Int, request: String): String
+    @JvmStatic external fun nativeStartHerdr(fd: Int, request: String): String
     @JvmStatic external fun nativePollEvent(sessionId: Long, timeoutMs: Int): String
     @JvmStatic external fun nativeSendCommand(sessionId: Long, command: String): Boolean
+    @JvmStatic external fun nativeFrame(sessionId: Long, frameRevision: Long, imageRevision: Long): ByteArray
+    @JvmStatic external fun nativeHerdrFrameWithEpoch(sessionId: Long, frameRevision: Long, imageRevision: Long): ByteArray
     @JvmStatic external fun nativeSnapshot(sessionId: Long): ByteArray
     @JvmStatic external fun nativeSnapshotWithImages(sessionId: Long, imageRevision: Long): ByteArray
+    @JvmStatic external fun nativeHerdrSnapshotWithEpoch(sessionId: Long, imageRevision: Long): ByteArray
     @JvmStatic external fun nativeTerminalProbe(): ByteArray
     @JvmStatic external fun nativeTerminalGraphicsProbe(commands: String, scroll: Int): ByteArray
     @JvmStatic external fun nativeRelease(sessionId: Long)
+    @JvmStatic external fun nativeRequestClose(sessionId: Long)
 }
 
 internal sealed interface SshAuthentication {
@@ -108,6 +113,33 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
             .put("base64", Base64.encodeToString(value, Base64.NO_WRAP)),
     )
 
+    /** The epoch belongs to the displayed Herdr frame, not the latest metadata event. */
+    fun sendHerdrInput(value: ByteArray, targetEpoch: Long): Boolean = send(
+        JSONObject()
+            .put("type", "input")
+            .put("base64", Base64.encodeToString(value, Base64.NO_WRAP))
+            .put("herdr_target_epoch", targetEpoch),
+    )
+
+    fun attachHerdr(name: String): Boolean = send(
+        JSONObject().put("type", "herdr_attach").put("session_name", name),
+    )
+
+    fun resumeHerdr(): Boolean = send(JSONObject().put("type", "herdr_resume"))
+
+    fun probeHerdr(nonce: String): Boolean = send(JSONObject().put("type", "herdr_probe").put("nonce", nonce))
+
+    fun setHerdrDisplay(improveTextContrast: Boolean, focused: Boolean): Boolean = send(
+        JSONObject().put("type", "herdr_display").put("improve_text_contrast", improveTextContrast).put("focused", focused),
+    )
+
+    fun sendHerdrAction(requestId: Long, bootId: String, method: String, targetId: String, label: String?): Boolean = send(
+        JSONObject().put("type", "herdr_action").put("request_id", requestId).put("boot_id", bootId)
+            .put("action", JSONObject().put("method", method).put("target_id", targetId).apply {
+                label?.let { put("label", it) }
+            }),
+    )
+
     fun resize(columns: Int, rows: Int, cellWidth: Int = 8, cellHeight: Int = 16): Boolean = send(
         JSONObject()
             .put("type", "resize")
@@ -132,8 +164,30 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
             .put("ansi", org.json.JSONArray(theme.ansiRgb)),
     )
 
-    fun terminalSnapshot(): TerminalRenderSnapshot =
-        snapshotDecoder.parse(NativeCore.nativeSnapshotWithImages(id, snapshotDecoder.imageRevision))
+    fun terminalSnapshot(): TerminalRenderSnapshot = readSnapshot {
+        snapshotDecoder.parse(NativeCore.nativeFrame(id, snapshotDecoder.frameRevision, snapshotDecoder.imageRevision))
+    }
+
+    private fun <T> readSnapshot(read: () -> T): T = synchronized(snapshotDecoder) {
+        try {
+            read()
+        } catch (_: IllegalArgumentException) {
+            // Retry once with a full frame, even if the remote terminal is idle.
+            // Invalid packets never become the next incremental baseline.
+            snapshotDecoder.reset()
+            read()
+        }
+    }
+
+    /** Epoch and pixels are sampled together by Rust while holding the terminal lock. */
+    fun herdrTerminalSnapshot(): Pair<TerminalRenderSnapshot, Long?> = readSnapshot {
+        val bytes = NativeCore.nativeHerdrFrameWithEpoch(id, snapshotDecoder.frameRevision, snapshotDecoder.imageRevision)
+        require(bytes.size > java.lang.Long.BYTES) { "Invalid Herdr snapshot" }
+        val epoch = java.nio.ByteBuffer.wrap(bytes, 0, java.lang.Long.BYTES)
+            .order(java.nio.ByteOrder.LITTLE_ENDIAN).long
+        require(epoch >= 0) { "Invalid Herdr target epoch" }
+        snapshotDecoder.parse(bytes.copyOfRange(java.lang.Long.BYTES, bytes.size)) to epoch.takeIf { it != 0L }
+    }
 
     fun list(path: String, requestId: String = UUID.randomUUID().toString()): String {
         check(send(
@@ -271,6 +325,9 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
         NativeCore.nativeRelease(id)
     }
 
+    /** Signals cancellation immediately; resource disposal remains on the IO dispatcher. */
+    fun requestClose() = NativeCore.nativeRequestClose(id)
+
     private fun send(command: JSONObject): Boolean =
         NativeCore.nativeSendCommand(id, command.toString())
 
@@ -280,6 +337,37 @@ internal class NativeSession private constructor(val id: Long) : AutoCloseable {
 
         fun startSftp(fd: Int, request: NativeSessionRequest): NativeSession =
             parseStart(NativeCore.nativeStartSftp(fd, request.toJson()))
+
+        fun startHerdr(fd: Int, request: NativeSessionRequest, executable: String, sessionName: String?): NativeSession {
+            val json = JSONObject(request.toJson()).put("herdrExecutable", executable)
+            sessionName?.let { json.put("herdrSessionName", it) }
+            return parseStart(NativeCore.nativeStartHerdr(fd, json.toString()))
+        }
+
+        // Construct serialized requests and load the native library before a
+        // dialed descriptor is detached. Each returned starter transfers the
+        // descriptor into Rust immediately, with no Kotlin serialization work.
+        fun prepareSsh(request: NativeSessionRequest): (Int) -> NativeSession {
+            val json = request.toJson()
+            NativeCore.nativeBuildInfo()
+            return { fd -> parseStart(NativeCore.nativeStartSsh(fd, json)) }
+        }
+
+        fun prepareSftp(request: NativeSessionRequest): (Int) -> NativeSession {
+            val json = request.toJson()
+            NativeCore.nativeBuildInfo()
+            return { fd -> parseStart(NativeCore.nativeStartSftp(fd, json)) }
+        }
+
+        fun prepareHerdr(request: NativeSessionRequest, executable: String, sessionName: String?,
+            improveTextContrast: Boolean = true, focused: Boolean = true): (Int) -> NativeSession {
+            val payload = JSONObject(request.toJson()).put("herdrExecutable", executable)
+                .put("herdrImproveTextContrast", improveTextContrast).put("herdrFocused", focused)
+            sessionName?.let { payload.put("herdrSessionName", it) }
+            val json = payload.toString()
+            NativeCore.nativeBuildInfo()
+            return { fd -> parseStart(NativeCore.nativeStartHerdr(fd, json)) }
+        }
 
         private fun parseStart(raw: String): NativeSession {
             val response = JSONObject(raw)

@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Instrumentation
@@ -50,18 +50,22 @@ internal object HomeUiChecks {
         check(find(activity.getString(R.string.onboard_network_title)) != null)
         click(activity.getString(R.string.onboard_next))
         click(activity.getString(R.string.onboard_next))
+        check(find(activity.getString(R.string.onboard_herdr_title)) != null)
+        click(activity.getString(R.string.onboard_next))
         click(activity.getString(R.string.onboard_start))
         check(completed) { "Onboarding did not complete" }
 
         val sessions = mutableStateOf(false)
         val connection = mutableStateOf<TailnetState>(TailnetState.Running(TailnetIdentity("self", "self.example", listOf("100.64.0.1")), 0))
         var login = false
+        var addTraditionalHost = false
         test.runOnMainSync {
             activity.setContent {
                 NovaScaleTheme(darkTheme = false) {
                     Box(Modifier.fillMaxSize().safeDrawingPadding()) {
                         HomeScreen(connection.value, emptyList(), sessions.value, { sessions.value = it },
-                            null, true, emptyList(), { login = true }, {}, {}, {}, {})
+                            null, true, emptyList(), { login = true }, {}, {}, {}, {},
+                            onAddTraditionalHost = { addTraditionalHost = true })
                     }
                 }
             }
@@ -78,6 +82,8 @@ internal object HomeUiChecks {
         check(find(activity.getString(R.string.continue_sign_in)) == null) { "Loading showed sign-in action" }
         test.runOnMainSync { connection.value = TailnetState.LoginRequired(null) }
         Thread.sleep(300)
+        click(activity.getString(R.string.traditional_host_add))
+        check(addTraditionalHost) { "Signed-out Hosts cannot add a traditional host" }
         click(activity.getString(R.string.continue_sign_in))
         check(login) { "Signed-out host page has no login action" }
         var opened: String? = null

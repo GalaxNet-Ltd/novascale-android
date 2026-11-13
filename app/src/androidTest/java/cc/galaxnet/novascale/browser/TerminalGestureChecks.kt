@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
 
 import android.app.Activity
@@ -10,7 +10,7 @@ import android.view.MotionEvent
 import cc.galaxnet.novascale.core.GhosttySnapshotParser
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
 import cc.galaxnet.novascale.nativecore.NativeCore
-import cc.galaxnet.novascale.terminal.TerminalCanvasView
+import cc.galaxnet.novascale.terminal.NovaTerminalView
 
 /** Real Android gesture detectors and Canvas view, with captured SSH input bytes. */
 internal object TerminalGestureChecks {
@@ -19,7 +19,7 @@ internal object TerminalGestureChecks {
         check(probe.accessibleText().contains("Ghostty")) { "Native mouse-mode snapshot probe failed" }
         val sent = mutableListOf<String>()
         var scrolled = 0
-        lateinit var view: TerminalCanvasView
+        lateinit var view: NovaTerminalView
         var down = SystemClock.uptimeMillis()
         fun event(action: Int, x: Float, y: Float, secondX: Float? = null, secondY: Float? = null) {
             val count = if (secondX == null) 1 else 2
@@ -32,11 +32,15 @@ internal object TerminalGestureChecks {
             view.onTouchEvent(e); e.recycle()
         }
         instrumentation.runOnMainSync {
-            view = TerminalCanvasView(activity)
+            view = NovaTerminalView(activity)
             activity.setContentView(view)
             view.layout(0, 0, 800, 600)
             view.submitSnapshot(TerminalRenderSnapshot(80, 24, emptyList(), mouseFlags = 4 or 16))
             view.setTerminalCallbacks(onInput = { sent += it.decodeToString() }, onResize = { _, _ -> }, onScroll = { scrolled += it })
+        }
+        // Input belongs to the settled viewport; the surface cancels gestures across a resize.
+        instrumentation.waitForIdleSync()
+        instrumentation.runOnMainSync {
             event(MotionEvent.ACTION_DOWN, 30f, 40f); event(MotionEvent.ACTION_UP, 30f, 40f)
         }
         SystemClock.sleep(400)

@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -18,7 +18,7 @@ class LegalDocumentsTest {
         assertEquals(paths.size, paths.toSet().size)
         assertEquals(
             setOf(
-                "legal/GPL-3.0-only.txt",
+                "legal/Apache-2.0.txt",
                 "legal/THIRD_PARTY_NOTICES.md",
             ),
             paths.toSet(),

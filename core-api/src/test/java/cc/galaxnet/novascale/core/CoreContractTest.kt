@@ -114,6 +114,37 @@ class CoreContractTest {
     }
 
     @Test
+    fun styledRunsKeepGraphemesAndSpacerCellsAtStyleBoundaries() {
+        val header = 14 * Int.SIZE_BYTES
+        val cellSize = 11
+        val extras = header + 5 * cellSize
+        val bytes = ByteArray(extras + 4 * Int.SIZE_BYTES)
+        val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(0, 5); buffer.putInt(4, 1); buffer.putInt(44, extras)
+        putCell(buffer, header, 'A'.code, flags = 1)
+        putCell(buffer, header + cellSize, '界'.code, flags = 1 or (1 shl 6))
+        putCell(buffer, header + 2 * cellSize, 0, flags = 1 or (1 shl 7))
+        putCell(buffer, header + 3 * cellSize, 'x'.code, flags = 1 shl 3)
+        putCell(buffer, header + 4 * cellSize, 0, flags = (1 shl 2) or (1 shl 7))
+        buffer.putInt(extras, 1); buffer.putInt(extras + 4, 1)
+        buffer.putInt(extras + 8, 1); buffer.putInt(extras + 12, 0x301)
+
+        val snapshot = GhosttySnapshotParser.parse(bytes)
+        val runs = snapshot.rows.single().runs
+        assertEquals(3, runs.size)
+        assertEquals("A界\u0301", runs[0].text)
+        assertEquals(3, runs[0].columnCount)
+        assertEquals(true, runs[0].bold)
+        assertEquals("x", runs[1].text)
+        assertEquals(0xff0d1117.toInt(), runs[1].foregroundArgb)
+        assertEquals(0xffe6edf3.toInt(), runs[1].backgroundArgb)
+        assertEquals(" ", runs[2].text)
+        assertEquals(true, runs[2].underline)
+        assertEquals("", snapshot.cellTextAt(TerminalCellPosition(0, 2)))
+        assertEquals("A界\u0301x", snapshot.accessibleText().trimEnd())
+    }
+
+    @Test
     fun terminalSelectionCopiesExactCellsAndTrimsOnlyLineEndPadding() {
         val snapshot = TerminalRenderSnapshot(
             columns = 6,

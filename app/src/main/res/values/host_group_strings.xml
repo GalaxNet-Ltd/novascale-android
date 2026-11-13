@@ -1,0 +1,42 @@
+<resources>
+    <string name="host_groups">Groups</string>
+    <string name="host_groups_manage">Manage groups</string>
+    <string name="host_groups_filter">Filter hosts: %1$s</string>
+    <string name="host_groups_all">All hosts</string>
+    <string name="host_groups_tailnet">Tailnet hosts</string>
+    <string name="host_groups_traditional">Traditional hosts</string>
+    <string name="host_groups_ungrouped">Ungrouped</string>
+    <string name="host_groups_empty">No groups yet. Create one to organize your hosts.</string>
+    <string name="host_groups_no_matching_hosts">No hosts match this filter.</string>
+    <string name="host_groups_create">Create group</string>
+    <string name="host_groups_rename">Rename group</string>
+    <string name="host_groups_name">Group name</string>
+    <string name="host_groups_delete_title">Delete group?</string>
+    <string name="host_groups_delete_description">Delete “%1$s”? Hosts and their connections will remain.</string>
+    <string name="host_groups_assign_title">Groups for %1$s</string>
+    <string name="host_groups_assign_empty">Create a group from the Hosts screen first.</string>
+    <string name="host_groups_unavailable">Groups are unavailable for this host because its stable tailnet identity is not available.</string>
+    <string name="host_groups_save_error">Could not save groups. Please try again.</string>
+    <string name="host_groups_storage_error">Could not load groups. Please try again.</string>
+    <string name="host_groups_edit_named">Rename %1$s</string>
+    <string name="host_groups_delete_named">Delete %1$s</string>
+    <string name="host_pinned">Pinned hosts</string>
+    <string name="host_pinned_indicator">Pinned</string>
+    <string name="host_pin">Pin host</string>
+    <string name="host_unpin">Unpin host</string>
+    <string name="host_pin_unavailable">Pinning is unavailable because this host has no stable tailnet identity.</string>
+    <string name="host_pin_storage_error">Could not load pinned hosts. Please try again.</string>
+    <string name="host_pin_save_error">Could not update the pinned host. Please try again.</string>
+    <string name="host_filter_title">Filter &amp; groups</string>
+    <string name="host_filter_open">Filter and groups</string>
+    <string name="host_filter_section">Filter</string>
+    <string name="host_filter_show_group">Show only this group</string>
+    <string name="host_filter_group_options">Options for %1$s</string>
+    <string name="host_filter_expand_group">Expand %1$s</string>
+    <string name="host_filter_collapse_group">Collapse %1$s</string>
+    <string name="host_filter_no_members">No currently available hosts in this group.</string>
+    <string name="host_filter_remove_member">Remove %1$s from %2$s</string>
+    <string name="host_filter_new_group">New group</string>
+    <string name="host_filter_traditional_subtitle">Traditional host</string>
+    <plurals name="host_filter_member_count"><item quantity="one">%d host</item><item quantity="other">%d hosts</item></plurals>
+</resources>

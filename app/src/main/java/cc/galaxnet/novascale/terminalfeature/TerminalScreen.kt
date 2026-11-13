@@ -2,9 +2,14 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
+
+import cc.galaxnet.novascale.ui.NovaSecondaryButton
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
+import cc.galaxnet.novascale.ui.NovaDestructiveButton
 
 import android.app.Activity
 import android.content.Context
@@ -22,6 +27,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -36,12 +42,14 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,7 +76,8 @@ import cc.galaxnet.novascale.core.TailnetState
 import cc.galaxnet.novascale.core.TailnetPeer
 import cc.galaxnet.novascale.remote.HostKeyConfirmationDialog
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
-import cc.galaxnet.novascale.terminal.TerminalCanvasView
+import cc.galaxnet.novascale.remote.SshTransport
+import cc.galaxnet.novascale.terminal.NovaTerminalView
 import cc.galaxnet.novascale.ui.NovaSpacing
 import cc.galaxnet.novascale.ui.NovaIcons
 import cc.galaxnet.novascale.ui.NovaTheme
@@ -87,7 +96,7 @@ internal data class TerminalChromeColors(
     val destructive: Color,
 )
 
-private fun TerminalThemePalette.chromeColors(): TerminalChromeColors {
+internal fun TerminalThemePalette.chromeColors(): TerminalChromeColors {
     val foreground = Color(foreground)
     return TerminalChromeColors(
         background = Color(adjustTerminalChromeBackground(background)),
@@ -127,6 +136,14 @@ internal fun TerminalScreen(
     }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val closed by group.isClosed.collectAsStateWithLifecycle()
+    if (closed) {
+        LaunchedEffect(group) {
+            keyboardController?.hide()
+            onExit()
+        }
+        return
+    }
     val hostDisplayName = peer.displayName
     val tabs by group.tabs.collectAsStateWithLifecycle()
     val selectedTabId by group.selectedTabId.collectAsStateWithLifecycle()
@@ -134,7 +151,7 @@ internal fun TerminalScreen(
     val controller = tab.runtime
     val state by controller.state.collectAsStateWithLifecycle()
     val viewAttachmentId = remember(group) { UUID.randomUUID().toString() }
-    var terminalView by remember(selectedTabId) { mutableStateOf<TerminalCanvasView?>(null) }
+    var terminalView by remember(selectedTabId) { mutableStateOf<NovaTerminalView?>(null) }
     LaunchedEffect(controller) {
         controller.clipboardWrites.collect { text ->
             // Hidden/background sessions must not overwrite the device clipboard.
@@ -142,7 +159,7 @@ internal fun TerminalScreen(
         }
     }
     var lastAutoInputTarget by remember(group) {
-        mutableStateOf<Pair<Int, TerminalCanvasView>?>(null)
+        mutableStateOf<Pair<Int, NovaTerminalView>?>(null)
     }
     var terminalInputCollapsed by remember(selectedTabId) { mutableStateOf(false) }
     var controlActive by remember(selectedTabId) { mutableStateOf(false) }
@@ -162,7 +179,7 @@ internal fun TerminalScreen(
     var tabPendingRename by remember { mutableStateOf<TerminalSessionTab?>(null) }
     var renameValue by remember { mutableStateOf("") }
     val addTerminalTab: () -> Unit = {
-        group.addTab(connectImmediately = tailnetState is TailnetState.Running)
+        group.addTab(connectImmediately = (initialConfig.transport == SshTransport.DIRECT || tailnetState is TailnetState.Running))
     }
     val resignTerminalInput: () -> Unit = {
         controlActive = false
@@ -196,7 +213,7 @@ internal fun TerminalScreen(
     }
 
     LaunchedEffect(tailnetState, group, initialConfig) {
-        if (tailnetState is TailnetState.Running && initialConfig.validate() == null) {
+        if ((initialConfig.transport == SshTransport.DIRECT || tailnetState is TailnetState.Running) && initialConfig.validate() == null) {
             group.ensureConnected()
         }
     }
@@ -242,7 +259,7 @@ internal fun TerminalScreen(
                 )
             },
             confirmButton = {
-                TextButton(
+                NovaDestructiveButton(
                     onClick = {
                         closeSessionRequested = false
                         resignTerminalInput()
@@ -250,11 +267,11 @@ internal fun TerminalScreen(
                         group.closeSession()
                     },
                 ) {
-                    Text(stringResource(R.string.action_close), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_close))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { closeSessionRequested = false }) {
+                NovaSecondaryButton(onClick = { closeSessionRequested = false }) {
                     Text(stringResource(R.string.keep_session))
                 }
             },
@@ -287,7 +304,7 @@ internal fun TerminalScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { tabActions = null }) {
+                NovaPrimaryButton(onClick = { tabActions = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -306,7 +323,7 @@ internal fun TerminalScreen(
                 )
             },
             confirmButton = {
-                TextButton(
+                NovaPrimaryButton(
                     onClick = {
                         if (group.renameTab(selected.id, renameValue)) {
                             tabPendingRename = null
@@ -316,7 +333,7 @@ internal fun TerminalScreen(
                 ) { Text(stringResource(R.string.action_rename)) }
             },
             dismissButton = {
-                TextButton(onClick = { tabPendingRename = null }) {
+                NovaSecondaryButton(onClick = { tabPendingRename = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -331,17 +348,17 @@ internal fun TerminalScreen(
             },
             text = { Text(stringResource(R.string.close_tab_description)) },
             confirmButton = {
-                TextButton(
+                NovaDestructiveButton(
                     onClick = {
                         tabPendingClose = null
                         if (group.closeTab(selected.id)) detachTerminal()
                     },
                 ) {
-                    Text(stringResource(R.string.close_tab), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.close_tab))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { tabPendingClose = null }) {
+                NovaSecondaryButton(onClick = { tabPendingClose = null }) {
                     Text(stringResource(R.string.keep_tab))
                 }
             },
@@ -381,7 +398,7 @@ internal fun TerminalScreen(
             ) {
                 AndroidView(
                     factory = { viewContext ->
-                        TerminalCanvasView(viewContext).apply {
+                        NovaTerminalView(viewContext).apply {
                             setOnFocusChangeListener { _, focused ->
                                 if (focused) {
                                     terminalInputCollapsed = false
@@ -511,7 +528,7 @@ internal fun TerminalScreen(
                 hostDisplayName = hostDisplayName,
                 endpoint = runCatching { initialConfig.endpoint }.getOrDefault(initialConfig.host),
                 state = state,
-                tailnetRunning = tailnetState is TailnetState.Running,
+                tailnetRunning = (initialConfig.transport == SshTransport.DIRECT || tailnetState is TailnetState.Running),
                 configurationValid = initialConfig.validate() == null,
                 onRetry = { controller.connect(tab.config) },
                 onEditSshSettings = {
@@ -530,7 +547,7 @@ private fun terminalAppearanceToken(
 
 @Suppress("DEPRECATION")
 @Composable
-private fun TerminalSystemBars(colors: TerminalChromeColors) {
+internal fun TerminalSystemBars(colors: TerminalChromeColors) {
     val view = LocalView.current
     val activity = remember(view) { view.context.findActivity() } ?: return
     val appBackground = NovaTheme.colors.backgroundPrimary
@@ -744,7 +761,7 @@ private fun TerminalConnectionSurface(
             if (!state.busy) {
                 Row(horizontalArrangement = Arrangement.spacedBy(NovaSpacing.sm)) {
                     if (tailnetRunning && configurationValid) {
-                        Button(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
+                        NovaPrimaryButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
                     }
                     TextButton(onClick = onEditSshSettings) {
                         Text(stringResource(R.string.feature_ssh_settings))
@@ -765,46 +782,49 @@ private fun TerminalTabBar(
     onAdd: () -> Unit,
     onActions: (TerminalSessionTab) -> Unit,
 ) {
-    Surface(
-        color = colors.background,
-        border = BorderStroke(1.dp, colors.border),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = NovaSpacing.sm, vertical = NovaSpacing.xs),
-            horizontalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+        Surface(
+            color = colors.background,
+            border = BorderStroke(1.dp, colors.border),
         ) {
-            tabs.forEach { tab ->
-                val selected = tab.id == selectedTabId
-                val title = tab.title.asString()
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = if (selected) colors.foreground.copy(alpha = 0.13f) else Color.Transparent,
-                    border = if (selected) BorderStroke(1.dp, colors.foreground.copy(alpha = 0.28f)) else null,
-                    modifier = Modifier.combinedClickable(
-                        onClick = { onSelect(tab.id) },
-                        onLongClickLabel = stringResource(R.string.cd_manage_tab, title),
-                        onLongClick = { onActions(tab) },
-                    ),
-                ) {
-                    Text(
-                        text = title,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selected) colors.foreground else colors.secondary,
-                        maxLines = 1,
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = NovaSpacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(NovaSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                tabs.forEach { tab ->
+                    val selected = tab.id == selectedTabId
+                    val title = tab.title.asString()
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = if (selected) colors.foreground.copy(alpha = 0.13f) else Color.Transparent,
+                        border = if (selected) BorderStroke(1.dp, colors.foreground.copy(alpha = 0.28f)) else null,
+                        modifier = Modifier.combinedClickable(
+                            onClick = { onSelect(tab.id) },
+                            onLongClickLabel = stringResource(R.string.cd_manage_tab, title),
+                            onLongClick = { onActions(tab) },
+                        ),
+                    ) {
+                        Text(
+                            text = title,
+                            modifier = Modifier.heightIn(min = 40.dp).wrapContentHeight(Alignment.CenterVertically)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (selected) colors.foreground else colors.secondary,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                IconButton(onClick = onAdd, enabled = tabs.size < 6, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        NovaIcons.Add,
+                        contentDescription = stringResource(R.string.cd_new_terminal_tab),
+                        tint = if (tabs.size < 6) colors.secondary else colors.secondary.copy(alpha = 0.35f),
                     )
                 }
-            }
-            IconButton(onClick = onAdd, enabled = tabs.size < 6) {
-                Icon(
-                    NovaIcons.Add,
-                    contentDescription = stringResource(R.string.cd_new_terminal_tab),
-                    tint = if (tabs.size < 6) colors.secondary else colors.secondary.copy(alpha = 0.35f),
-                )
             }
         }
     }

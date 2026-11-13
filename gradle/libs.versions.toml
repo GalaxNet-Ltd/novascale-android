@@ -13,8 +13,10 @@ media3 = "1.10.1"
 desugarJdkLibs = "2.1.5"
 sora = "0.24.4"
 androidTreeSitter = "4.3.2"
+playBilling = "9.1.0"
 
 [libraries]
+google-play-billing = { module = "com.android.billingclient:billing", version.ref = "playBilling" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }

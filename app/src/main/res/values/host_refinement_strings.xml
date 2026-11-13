@@ -1,0 +1,34 @@
+<resources>
+    <string name="hosts_search">Search hosts</string>
+    <string name="hosts_search_hint">Name or address</string>
+    <string name="hosts_search_empty">No matching hosts</string>
+    <string name="hosts_search_clear">Clear search</string>
+    <string name="hosts_organize">Organization</string>
+    <string name="hosts_groups_none">Add to a group</string>
+    <string name="hosts_pin_help">Show at the top of All hosts</string>
+    <string name="hosts_group_select">Show %1$s hosts</string>
+    <string name="hosts_group_members">Manage hosts</string>
+    <string name="hosts_group_members_title">Hosts in %1$s</string>
+    <string name="hosts_group_members_empty">Add a host or connect to your tailnet to organize hosts here.</string>
+    <string name="hosts_group_unavailable">Unavailable hosts stay in this group.</string>
+    <string name="hosts_group_name_error">Use a unique group name without control characters.</string>
+    <string name="hosts_group_assign_new">Create a group here to organize this host.</string>
+    <string name="herdr_action_description">Persistent sessions</string>
+    <string name="herdr_session_help">Choose a session on %1$s. Detach to leave your remote work running.</string>
+    <string name="herdr_session_running">Running</string>
+    <string name="herdr_session_stopped">Start on connect</string>
+    <string name="herdr_session_new">New session</string>
+    <string name="herdr_session_new_help">Use 1–64 letters, numbers, dots, hyphens or underscores.</string>
+    <string name="herdr_session_invalid">Enter a valid session name.</string>
+    <string name="herdr_connect">Connect</string>
+    <string name="herdr_refresh">Refresh sessions</string>
+    <string name="herdr_advanced">Advanced</string>
+    <string name="herdr_executable">Herdr executable</string>
+    <string name="herdr_executable_help">Leave blank to find herdr automatically, or enter its full path on the host.</string>
+    <string name="herdr_executable_invalid">Enter a single path without line breaks.</string>
+    <string name="herdr_close_title">Close this connection?</string>
+    <string name="herdr_close_description">Disconnect from this Herdr session. Your remote processes will keep running. Detach instead to keep this connection ready.</string>
+    <string name="herdr_keyboard">Show terminal keyboard</string>
+    <string name="herdr_reconnect">Reconnect</string>
+    <string name="herdr_choose_another">Choose another session</string>
+</resources>

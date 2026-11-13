@@ -2,20 +2,21 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.terminalfeature
 
 import android.content.Context
 import cc.galaxnet.novascale.R
 import cc.galaxnet.novascale.core.TailnetBackend
-import cc.galaxnet.novascale.core.TailnetDestination
 import cc.galaxnet.novascale.core.TerminalRenderSnapshot
 import cc.galaxnet.novascale.nativecore.NativeSession
 import cc.galaxnet.novascale.nativecore.NativeTerminalTheme
 import cc.galaxnet.novascale.remote.HostKeyPrompt
 import cc.galaxnet.novascale.remote.KnownHostStore
 import cc.galaxnet.novascale.remote.RemoteConnectionConfig
+import cc.galaxnet.novascale.remote.SshTransport
+import cc.galaxnet.novascale.remote.startRemoteSession
 import cc.galaxnet.novascale.ui.UiText
 import cc.galaxnet.novascale.ui.asUiText
 import cc.galaxnet.novascale.ui.uiText
@@ -42,6 +43,10 @@ internal data class TerminalConnectionState(
 internal interface TerminalRuntime : AutoCloseable {
     val clipboardWrites: kotlinx.coroutines.flow.Flow<String> get() = kotlinx.coroutines.flow.emptyFlow()
     val state: StateFlow<TerminalConnectionState>
+    /** Main-thread notification of a confirmed remote shell exit, not a lost connection. */
+    var onExited: (() -> Unit)?
+    /** Route of the actual in-flight/live connection, independent of later profile edits. */
+    val activeTransport: SshTransport? get() = null
 
     fun connect(config: RemoteConnectionConfig)
 
@@ -74,6 +79,7 @@ internal class TerminalConnectionController(
     private val knownHosts = KnownHostStore(context)
     private val mutableState = MutableStateFlow(TerminalConnectionState())
     override val state: StateFlow<TerminalConnectionState> = mutableState.asStateFlow()
+    override var onExited: (() -> Unit)? = null
 
     private var nativeSession: NativeSession? = null
     private var connectJob: Job? = null
@@ -82,6 +88,8 @@ internal class TerminalConnectionController(
     private var columns = 80
     private var rows = 24
     private var terminalTheme: NativeTerminalTheme? = null
+    override val activeTransport: SshTransport?
+        get() = if (nativeSession != null || connectJob?.isActive == true) lastConfig?.transport else null
 
     override fun connect(config: RemoteConnectionConfig) {
         config.validate()?.let { error ->
@@ -97,14 +105,11 @@ internal class TerminalConnectionController(
                 busy = true,
             )
             try {
-                val stream = tailnet.dial(TailnetDestination(config.host.trim(), config.portNumber))
                 val expected = knownHosts.fingerprint(config)
-                val session = withContext(Dispatchers.IO) {
-                    NativeSession.startSsh(
-                        stream.fd,
-                        config.request(expected, columns, rows, terminalTheme),
-                    )
+                val start = withContext(Dispatchers.IO) {
+                    NativeSession.prepareSsh(config.request(expected, columns, rows, terminalTheme))
                 }
+                val session = startRemoteSession(config, tailnet, start)
                 nativeSession = session
                 // A preference change can race the dial/handshake. Re-send the
                 // latest palette after ownership is published so that change is
@@ -248,7 +253,7 @@ internal class TerminalConnectionController(
                     break
                 }
                 "closed", "event_stream_closed" -> {
-                    finishSession(session) {
+                    finishSession(session, shellExited = event.type == "closed" && event.exitStatus != null) {
                         it.copy(
                             status = event.exitStatus?.let {
                                 uiText(R.string.terminal_status_exited, it)
@@ -271,16 +276,22 @@ internal class TerminalConnectionController(
         withContext(NonCancellable + Dispatchers.IO) { runCatching { session?.close() } }
     }
 
-    private suspend fun finishSession(session: NativeSession, block: (TerminalConnectionState) -> TerminalConnectionState) {
-        withContext(Dispatchers.Main.immediate) {
-            if (nativeSession === session) {
-                nativeSession = null
-                eventJob = null
-                mutableState.value = block(mutableState.value)
+    private suspend fun finishSession(session: NativeSession, shellExited: Boolean = false,
+        block: (TerminalConnectionState) -> TerminalConnectionState) {
+        try {
+            withContext(Dispatchers.Main.immediate) {
+                if (nativeSession === session) {
+                    val wasConnected = mutableState.value.connected
+                    nativeSession = null
+                    eventJob = null
+                    mutableState.value = block(mutableState.value)
+                    if (shellExited && wasConnected) onExited?.invoke()
+                }
             }
+        } finally {
+            // Retire the native entry even if exit handling cancels this poller.
+            withContext(NonCancellable + Dispatchers.IO) { runCatching { session.close() } }
         }
-        // Release the failed/closed native entry even if a new attempt cancels this poller.
-        withContext(NonCancellable + Dispatchers.IO) { runCatching { session.close() } }
     }
 
     private suspend fun update(session: NativeSession, block: (TerminalConnectionState) -> TerminalConnectionState) {

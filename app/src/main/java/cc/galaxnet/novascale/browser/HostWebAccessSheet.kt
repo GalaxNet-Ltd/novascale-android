@@ -1,6 +1,8 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.browser
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +32,7 @@ internal fun HostWebAccessSheet(peer: TailnetPeer, onDismiss: () -> Unit, onOpen
         val url = runCatching { browserUrl(address) }.getOrNull()
         if (url == null) invalid = true else onOpen(url)
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Outlined.Language, null, Modifier.align(Alignment.CenterHorizontally).size(32.dp), tint = MaterialTheme.colorScheme.primary)
@@ -52,7 +54,7 @@ internal fun HostWebAccessSheet(peer: TailnetPeer, onDismiss: () -> Unit, onOpen
                     }
                 }
             }
-            Button(onClick = ::open, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.web_open_browser)) }
+            NovaPrimaryButton(onClick = ::open, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.web_open_browser)) }
         }
     }
 }

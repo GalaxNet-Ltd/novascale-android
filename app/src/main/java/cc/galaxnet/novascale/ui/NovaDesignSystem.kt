@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.ui
 
@@ -66,6 +66,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontSynthesis
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.vector.path
@@ -90,6 +91,8 @@ data class NovaSemanticColors(
     val menuPrimary: Color,
     val menuGreen: Color,
     val menuFile: Color,
+    val menuAppearance: Color,
+    val menuSupport: Color,
     val platformApple: Color,
     val platformLinux: Color,
     val platformWindows: Color,
@@ -112,6 +115,8 @@ private val NovaLightColors = NovaSemanticColors(
     menuPrimary = Color(0xFF3656C9),
     menuGreen = Color(0xFF087F5B),
     menuFile = Color(0xFF956600),
+    menuAppearance = Color(0xFF7545AC),
+    menuSupport = Color(0xFF966216),
     platformApple = Color(0xFF33363D),
     platformLinux = Color(0xFF29A366),
     platformWindows = Color(0xFF248FDB),
@@ -134,6 +139,8 @@ private val NovaDarkColors = NovaSemanticColors(
     menuPrimary = Color(0xFF99B4FF),
     menuGreen = Color(0xFF3BC48B),
     menuFile = Color(0xFFE4BE25),
+    menuAppearance = Color(0xFFCAA6F3),
+    menuSupport = Color(0xFFF3C574),
     platformApple = Color(0xFF25282C),
     platformLinux = Color(0xFF238A57),
     platformWindows = Color(0xFF1E78B8),
@@ -390,44 +397,44 @@ object NovaIcons {
 
 private val NovaTypography = Typography(
     headlineLarge = Typography().headlineLarge.copy(
-        fontSize = 32.sp,
-        lineHeight = 38.sp,
-        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        fontWeight = FontWeight.Medium,
     ),
     headlineMedium = Typography().headlineMedium.copy(
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        fontWeight = FontWeight.Medium,
     ),
     headlineSmall = Typography().headlineSmall.copy(
         fontSize = 20.sp,
         lineHeight = 26.sp,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
     ),
-    titleLarge = Typography().titleLarge.copy(fontWeight = FontWeight.SemiBold),
-    titleMedium = Typography().titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    bodyLarge = Typography().bodyLarge.copy(fontSize = 17.sp, lineHeight = 24.sp),
-    bodyMedium = Typography().bodyMedium.copy(fontSize = 15.sp, lineHeight = 21.sp),
-    bodySmall = Typography().bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
-    labelLarge = Typography().labelLarge.copy(fontWeight = FontWeight.SemiBold),
+    titleLarge = Typography().titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal),
+    titleMedium = Typography().titleMedium.copy(fontWeight = FontWeight.Normal),
+    bodyLarge = Typography().bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp),
+    bodyMedium = Typography().bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp),
+    bodySmall = Typography().bodySmall.copy(fontSize = 12.sp, lineHeight = 18.sp),
+    labelLarge = Typography().labelLarge.copy(fontWeight = FontWeight.Medium),
 ) .let { base ->
     val mono = FontFamily(Font(R.font.jetbrains_mono))
     base.copy(
-        displayLarge = base.displayLarge.copy(fontFamily = mono),
-        displayMedium = base.displayMedium.copy(fontFamily = mono),
-        displaySmall = base.displaySmall.copy(fontFamily = mono),
-        headlineLarge = base.headlineLarge.copy(fontFamily = mono),
-        headlineMedium = base.headlineMedium.copy(fontFamily = mono),
-        headlineSmall = base.headlineSmall.copy(fontFamily = mono),
-        titleLarge = base.titleLarge.copy(fontFamily = mono),
-        titleMedium = base.titleMedium.copy(fontFamily = mono),
-        titleSmall = base.titleSmall.copy(fontFamily = mono),
-        bodyLarge = base.bodyLarge.copy(fontFamily = mono),
-        bodyMedium = base.bodyMedium.copy(fontFamily = mono),
-        bodySmall = base.bodySmall.copy(fontFamily = mono),
-        labelLarge = base.labelLarge.copy(fontFamily = mono),
-        labelMedium = base.labelMedium.copy(fontFamily = mono),
-        labelSmall = base.labelSmall.copy(fontFamily = mono),
+        displayLarge = base.displayLarge.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        displayMedium = base.displayMedium.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        displaySmall = base.displaySmall.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        headlineLarge = base.headlineLarge.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        headlineMedium = base.headlineMedium.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        headlineSmall = base.headlineSmall.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        titleLarge = base.titleLarge.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        titleMedium = base.titleMedium.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        titleSmall = base.titleSmall.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        bodyLarge = base.bodyLarge.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        bodyMedium = base.bodyMedium.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        bodySmall = base.bodySmall.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        labelLarge = base.labelLarge.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        labelMedium = base.labelMedium.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
+        labelSmall = base.labelSmall.copy(fontFamily = mono, letterSpacing = 0.sp, fontSynthesis = FontSynthesis.None),
     )
 }
 
@@ -449,7 +456,8 @@ fun NovaScaleTheme(
         darkColorScheme(
             primary = semantic.primary,
             onPrimary = Color(0xFF091425),
-            primaryContainer = semantic.primaryShade,
+            primaryContainer = Color(0xFF233653),
+            onPrimaryContainer = Color(0xFFD9E4FF),
             secondary = semantic.statusConnected,
             tertiary = semantic.accent,
             background = semantic.backgroundPrimary,
@@ -465,13 +473,16 @@ fun NovaScaleTheme(
             onSurfaceVariant = semantic.textSecondary,
             outline = semantic.textSecondary,
             outlineVariant = semantic.borderSubtle,
-            error = semantic.statusDisconnected,
+            // Red labels must also contrast with neutral dialog/card surfaces.
+            error = Color(0xFFFF8A8E),
+            onError = Color(0xFF240305),
         )
     } else {
         lightColorScheme(
             primary = semantic.primary,
             onPrimary = Color.White,
-            primaryContainer = semantic.primaryShade,
+            primaryContainer = Color(0xFFE7EDFF),
+            onPrimaryContainer = Color(0xFF203A94),
             secondary = semantic.statusConnected,
             tertiary = semantic.accent,
             background = semantic.backgroundPrimary,
@@ -487,7 +498,8 @@ fun NovaScaleTheme(
             onSurfaceVariant = semantic.textSecondary,
             outline = semantic.textSecondary,
             outlineVariant = semantic.borderSubtle,
-            error = semantic.statusDisconnected,
+            error = Color(0xFFB42329),
+            onError = Color.White,
         )
     }
     CompositionLocalProvider(LocalNovaColors provides semantic) {

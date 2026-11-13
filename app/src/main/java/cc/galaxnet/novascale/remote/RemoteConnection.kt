@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.remote
 
@@ -32,8 +32,12 @@ internal enum class AuthenticationKind(@StringRes val labelRes: Int) {
     PRIVATE_KEY(R.string.auth_private_key),
 }
 
+internal enum class SshTransport { TAILNET, DIRECT }
+
 internal data class RemoteConnectionConfig(
     val host: String = "",
+    val transport: SshTransport = SshTransport.TAILNET,
+    val tailnetProfileId: String? = null,
     val port: String = "22",
     val username: String = "",
     val authenticationKind: AuthenticationKind = AuthenticationKind.NONE,
@@ -84,30 +88,37 @@ internal data class RemoteConnectionConfig(
 
 /** Fingerprints are not secrets and are kept separately from encrypted credentials. */
 internal class KnownHostStore(context: Context) {
-    private val preferences = context.getSharedPreferences("known_ssh_hosts", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private fun preferences(config: RemoteConnectionConfig) = appContext.getSharedPreferences(
+        scopedPreferenceName("known_ssh_hosts", if (config.transport == SshTransport.TAILNET) config.tailnetProfileId else null), Context.MODE_PRIVATE)
 
     fun fingerprint(config: RemoteConnectionConfig): String? =
-        preferences.getString(config.endpoint, null)
+        preferences(config).getString(config.endpoint, null)
 
     fun trust(config: RemoteConnectionConfig, fingerprint: String) {
         require(fingerprint.startsWith("SHA256:"))
-        preferences.edit().putString(config.endpoint, fingerprint).apply()
+        preferences(config).edit().putString(config.endpoint, fingerprint).apply()
     }
 
     fun forget(config: RemoteConnectionConfig) {
-        preferences.edit().remove(config.endpoint).apply()
+        preferences(config).edit().remove(config.endpoint).apply()
     }
 }
 
 /** Per-host SSH settings encrypted with a non-exportable Android Keystore key. */
-internal class SshProfileStore(context: Context) {
-    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+internal class SshProfileStore(context: Context, private val profileId: String? = null) {
+    private val preferences = context.getSharedPreferences(scopedPreferenceName(PREFERENCES_NAME, profileId), Context.MODE_PRIVATE)
 
     fun contains(hostId: String): Boolean = preferences.contains(preferenceKey(hostId))
 
     fun load(hostId: String): RemoteConnectionConfig? {
         val encoded = preferences.getString(preferenceKey(hostId), null) ?: return null
-        return runCatching {
+        return decode(encoded)?.let { config ->
+            if (profileId != null && config.transport == SshTransport.TAILNET) config.copy(tailnetProfileId = profileId) else config
+        }
+    }
+
+    private fun decode(encoded: String): RemoteConnectionConfig? = runCatching {
             val parts = encoded.split(':', limit = 3)
             require(parts.size == 3 && parts[0] == FORMAT_VERSION)
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -121,6 +132,9 @@ internal class SshProfileStore(context: Context) {
             )
             RemoteConnectionConfig(
                 host = document.optString("host"),
+                transport = runCatching { SshTransport.valueOf(document.optString("transport")) }
+                    .getOrDefault(SshTransport.TAILNET),
+                tailnetProfileId = document.optString("tailnetProfileId").takeIf { it.isNotBlank() },
                 port = document.optString("port", "22"),
                 username = document.optString("username"),
                 authenticationKind = runCatching {
@@ -131,11 +145,17 @@ internal class SshProfileStore(context: Context) {
                 passphrase = document.optString("passphrase"),
             )
         }.getOrNull()
-    }
 
     fun save(hostId: String, config: RemoteConnectionConfig) {
+        preferences.edit().putString(preferenceKey(hostId), encrypt(config)).apply()
+    }
+
+    /** Encrypted journal value; never store the plaintext configuration in Room. */
+    fun encrypt(config: RemoteConnectionConfig): String {
         val document = JSONObject()
             .put("host", config.host.trim())
+            .put("transport", config.transport.name)
+            .put("tailnetProfileId", config.tailnetProfileId)
             .put("port", config.port)
             .put("username", config.username.trim())
             .put("authenticationKind", config.authenticationKind.name)
@@ -145,16 +165,57 @@ internal class SshProfileStore(context: Context) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, encryptionKey())
         val ciphertext = cipher.doFinal(document.toString().toByteArray(StandardCharsets.UTF_8))
-        val encoded = listOf(
+        return listOf(
             FORMAT_VERSION,
             Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
             Base64.encodeToString(ciphertext, Base64.NO_WRAP),
         ).joinToString(":")
-        preferences.edit().putString(preferenceKey(hostId), encoded).apply()
+    }
+
+    fun writeEncryptedDurably(hostId: String, encoded: String) {
+        check(preferences.edit().putString(preferenceKey(hostId), encoded).commit()) { "SSH profile write failed" }
+    }
+
+    fun removeDurably(hostId: String) {
+        check(preferences.edit().remove(preferenceKey(hostId)).commit()) { "SSH profile deletion failed" }
     }
 
     fun remove(hostId: String) {
         preferences.edit().remove(preferenceKey(hostId)).apply()
+    }
+
+    fun migrateLegacyTailnet(context: Context, legacyId: String, traditionalIds: Set<String>) {
+        check(profileId == null)
+        val protectedKeys = traditionalIds.map(::preferenceKey).toSet()
+        val target = context.getSharedPreferences(scopedPreferenceName(PREFERENCES_NAME, legacyId), Context.MODE_PRIVATE)
+        val destination = target.edit()
+        val source = preferences.edit()
+        for ((key, value) in preferences.all) {
+            if (value !is String || !key.startsWith("host_")) continue
+            if (key in protectedKeys) {
+                val config = decode(value) ?: continue
+                if (config.transport == SshTransport.TAILNET && config.tailnetProfileId == null) {
+                    source.putString(key, encrypt(config.copy(tailnetProfileId = legacyId)))
+                }
+            } else {
+                // Ciphertext is moved without exposing credentials. Unreadable values stay
+                // unreadable, confined to the original profile, and can be repaired there.
+                destination.putString(key, value)
+                source.remove(key)
+            }
+        }
+        check(destination.commit())
+        check(source.commit())
+        val oldTrust = context.getSharedPreferences("known_ssh_hosts", Context.MODE_PRIVATE)
+        val scopedTrust = context.getSharedPreferences(scopedPreferenceName("known_ssh_hosts", legacyId), Context.MODE_PRIVATE).edit()
+        val remainingTrust = oldTrust.edit()
+        val traditionalEndpoints = traditionalIds.mapNotNull { load(it)?.endpoint }.toSet()
+        for ((endpoint, fingerprint) in oldTrust.all) if (fingerprint is String) {
+            scopedTrust.putString(endpoint, fingerprint)
+            if (endpoint !in traditionalEndpoints) remainingTrust.remove(endpoint)
+        }
+        check(scopedTrust.commit())
+        check(remainingTrust.commit())
     }
 
     private fun encryptionKey(): SecretKey {
@@ -198,3 +259,10 @@ internal data class HostKeyPrompt(
     val changed: Boolean
         get() = expectedFingerprint != null
 }
+
+/** IDs are local opaque identifiers, never paths or control-server URLs. */
+internal fun scopedPreferenceName(base: String, profileId: String?): String =
+    if (profileId == null) base else {
+        require(profileId.matches(Regex("[A-Za-z0-9_-]{1,80}")))
+        "${base}_$profileId"
+    }

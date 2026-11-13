@@ -2,13 +2,14 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.files
 
 import cc.galaxnet.novascale.R
 import cc.galaxnet.novascale.ui.uiText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,6 +21,33 @@ class SftpViewModelTest {
         entry("alpha", directory = true, modifiedAt = 10),
         entry("beta.txt", size = 50, modifiedAt = 40),
     )
+
+    @Test
+    fun linkedFoldersNavigateAndSortAsFoldersButDeleteAsLinks() {
+        val folderLink = entry("linked-folder").copy(kind = "symlink", targetKind = "directory")
+        val fileLink = entry("linked-file").copy(kind = "symlink", targetKind = "file")
+        assertTrue(folderLink.isSymbolicLink)
+        assertTrue(folderLink.isDirectory)
+        assertFalse(folderLink.deleteAsDirectory)
+        assertFalse(fileLink.isDirectory)
+        assertFalse(fileLink.deleteAsDirectory)
+        assertTrue(entry("folder", directory = true).deleteAsDirectory)
+        val result = filterAndSortSftpEntries(listOf(fileLink, entry("aaa.txt"), folderLink), "", false, SftpSortOrder.NAME_ASCENDING)
+        assertEquals(listOf("linked-folder", "aaa.txt", "linked-file"), result.map { it.name })
+    }
+
+    @Test
+    fun unresolvedLinksRemainIdentifiableWithoutPretendingToBeFiles() {
+        val missing = entry("missing").copy(kind = "symlink")
+        assertTrue(missing.isSymbolicLink)
+        assertTrue(missing.isUnavailableLink)
+        assertFalse(missing.isDirectory)
+        assertFalse(missing.deleteAsDirectory)
+        assertTrue(missing.copy(targetKind = "other").isUnavailableLink)
+        assertFalse(missing.copy(targetKind = "file").isUnavailableLink)
+        assertFalse(missing.copy(targetKind = "directory").isUnavailableLink)
+        assertFalse(entry("normal").isUnavailableLink)
+    }
 
     @Test
     fun hiddenFilesAreExcludedByDefaultAndDirectoriesRemainFirst() {

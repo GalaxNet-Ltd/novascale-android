@@ -1,0 +1,28 @@
+<resources>
+    <string name="herdr_restoring">正在恢復連線…</string>
+    <string name="herdr_recovery_failed">無法恢復連線，請嘗試重新連線。</string>
+    <string name="herdr_agents">智慧代理</string>
+    <string name="herdr_agents_empty">此工作階段中沒有智慧代理。使用分頁或工作區開啟終端機。</string>
+    <string name="herdr_agent_working">工作中</string>
+    <string name="herdr_agent_attention">需要關注</string>
+    <string name="herdr_agent_idle">閒置</string>
+    <string name="herdr_agent_done">已完成</string>
+    <string name="herdr_agent_unknown">未知</string>
+    <string name="herdr_selected">已選取</string>
+    <string name="herdr_workspaces">工作區</string>
+    <string name="herdr_workspace_new">新增工作區</string>
+    <string name="herdr_tab_new">新增分頁</string>
+    <string name="herdr_tab_options">分頁 %1$s 的選項</string>
+    <string name="herdr_tab_rename">重新命名分頁</string>
+    <string name="herdr_tab_name">分頁名稱</string>
+    <string name="herdr_tab_close">關閉分頁</string>
+    <string name="herdr_tab_close_named">關閉分頁「%1$s」？</string>
+    <string name="herdr_tab_close_help">關閉此分頁將終止其遠端 Shell 和程序。</string>
+    <string name="herdr_tab_close_last_help">這是工作區中的最後一個分頁。關閉它也會關閉工作區，並終止其遠端 Shell 和程序。</string>
+    <string name="herdr_actions">Herdr 操作</string>
+    <string name="herdr_action_error">操作未完成</string>
+    <string name="herdr_action_unknown">伺服器未確認結果。請重新連線並檢查狀態，然後再試。</string>
+    <string name="herdr_action_stale">工作階段已變更，請重新選取目標。</string>
+    <string name="herdr_action_unsupported">此伺服器不支援該操作。</string>
+    <string name="herdr_action_refused">伺服器拒絕了操作，連線仍然保持。</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="herdr_appearance_section">Herdr 远程</string>
+    <string name="herdr_improve_text_contrast">改善文本对比度</string>
+    <string name="herdr_improve_text_contrast_help">让低对比度背景上的文字更清晰。关闭后使用终端原始颜色。</string>
+</resources>

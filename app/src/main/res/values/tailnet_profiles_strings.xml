@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tailnets_title">Tailnets</string>
+    <string name="tailnets_add">Add tailnet</string>
+    <string name="tailnets_name">Name</string>
+    <string name="tailnets_custom">Custom server</string>
+    <string name="tailnets_one_active">Save multiple tailnets and connect to one at a time.</string>
+    <string name="tailnets_add_hint">Save this profile, then select it to connect and sign in. Each profile has its own login, including profiles on the same server.</string>
+    <string name="tailnets_invalid">Enter a name and a valid HTTPS server URL without credentials, a query, or a fragment.</string>
+    <string name="tailnets_active">Active</string>
+    <string name="tailnets_saved">Saved · tap to switch</string>
+    <string name="tailnets_options">Options for %1$s</string>
+    <string name="tailnets_rename">Rename</string>
+    <string name="tailnets_remove_active_hint">Switch to another tailnet before removing this one.</string>
+    <string name="tailnets_switch_title">Switch to %1$s?</string>
+    <string name="tailnets_switch_description">This closes terminal, Herdr, file and browser connections using the current tailnet. Unsaved file edits will be discarded. Direct SSH sessions stay open. Your saved login is kept.</string>
+    <string name="tailnets_switch">Switch</string>
+    <string name="tailnets_remove_title">Remove %1$s?</string>
+    <string name="tailnets_remove_description">Remove this profile and its saved login, SSH settings, host-key trust, group memberships and pins from this device. This does not delete your account on the server.</string>
+    <string name="tailnets_operation_failed">The change could not be completed. Your other saved tailnets are unchanged. Try again.</string>
+    <string name="tailnets_retry">Retry connection</string>
+    <string name="tailnets_manage">Manage tailnets</string>
+    <string name="tailnets_login_profile">Sign in to %1$s</string>
+    <string name="tailnets_connection_changed">The active tailnet changed. Open the host again from the current network.</string>
+    <string name="tailnets_status_description">Tailnet %1$s: %2$s. Switch or manage tailnets.</string>
+</resources>

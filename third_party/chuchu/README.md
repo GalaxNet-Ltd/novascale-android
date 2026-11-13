@@ -1,18 +1,22 @@
-# Chuchu reference record
+# Historical Chuchu reference record
 
 - Upstream: https://github.com/jossephus/chuchu
 - Reference commit: `d962636e7948d870cf82828d8df4bf00b5e87ea9`
-- License: MIT (retained in `LICENSE`)
-- Adapted source: `zig-src/src/bridge/chuchu_snapshot.zig`
+- License: MIT (retained unchanged in `LICENSE`)
+- Former adapted source: `zig-src/src/bridge/chuchu_snapshot.zig`
 
-NovaScale adapted the terminal construction, Ghostty effect-handler wiring,
-grapheme-aware 14-field/11-byte-cell snapshot format, and render-state cell
-serialization into `native/nova-ghostty-zig/src/nova_ghostty.zig`.
+Earlier NovaScale versions adapted terminal setup, effect wiring, the legacy
+14-field/11-byte-cell snapshot format, and cell/grapheme serialization in
+`nova_ghostty.zig`. The former `kitty_snapshot.zig` also cited the viewport and
+Unicode placement reference.
 
-The Kitty adapter also follows the same reference's screen-pin-to-viewport
-conversion and Unicode placement iterator integration. NovaScale owns its
-versioned image trailer, asset cache, memory limits and Canvas bitmap renderer.
+The owner-approved public C API migration on 2026-11-11 removed those two source
+files and their unused allocator helper. Current terminal setup and frame v2
+serialization are independently implemented against libghostty-vt's public C
+headers. There is no Chuchu runtime dependency or adapted source in the current
+build. The legacy wire decoder is retained only for synthetic fixtures and the
+host test fallback, not as an Android terminal implementation.
 
-Chuchu's SSH implementation, JNI bridge, image decoding, and libssh2 dependency
-are not imported. NovaScale's network stream remains Tailscale -> owned file
-descriptor -> Rust -> Russh, and the Rust core calls the narrow Ghostty C ABI.
+Keep this pin and MIT notice with historical source; removal does not erase
+attribution or alter the license of prior adapted releases. Chuchu's SSH, JNI,
+image decoder and libssh2 were never imported.

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="browser_recent">最近访问</string>
+    <string name="browser_favorites">收藏</string>
+    <string name="browser_history">历史记录</string>
+    <string name="browser_library_empty">访问过的网站将显示在这里。</string>
+    <string name="browser_favorites_empty">在网页菜单中收藏，即可在这里找到它。</string>
+    <string name="browser_add_favorite">添加收藏</string>
+    <string name="browser_edit_favorite">编辑收藏</string>
+    <string name="browser_remove_favorite">移除收藏</string>
+    <string name="browser_site_name">名称</string>
+    <string name="browser_search_library">搜索网站</string>
+    <string name="browser_clear_history">清除历史记录</string>
+    <string name="browser_clear_history_description">清除此网络的浏览记录？收藏将会保留。</string>
+    <string name="browser_remove_history">移除历史记录</string>
+    <string name="browser_library_error">无法更新网站记录，请重试。</string>
+    <string name="browser_find">在页面中查找</string>
+    <string name="browser_find_query">查找文字</string>
+    <string name="browser_find_previous">上一个匹配</string>
+    <string name="browser_find_next">下一个匹配</string>
+    <string name="browser_find_count">%1$d / %2$d</string>
+    <string name="browser_find_none">没有匹配项</string>
+    <string name="browser_settings">浏览器设置</string>
+    <string name="browser_local_data">收藏和历史记录按网络分别保存在此设备上。</string>
+    <string name="browser_resume">继续浏览</string>
+    <string name="browser_resume_description">浏览器连接已结束，连接后可重新打开此页面。</string>
+    <string name="browser_protocol">协议</string>
+    <string name="browser_site_options">网站选项：%1$s</string>
+    <string name="browser_open_saved">打开网站</string>
+    <string name="browser_no_results">没有匹配的网站</string>
+</resources>

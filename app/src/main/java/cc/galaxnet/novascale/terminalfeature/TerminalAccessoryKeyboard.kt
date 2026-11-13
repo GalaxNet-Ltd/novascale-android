@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale.terminalfeature
 
 import androidx.compose.foundation.BorderStroke
@@ -225,7 +225,9 @@ private fun ArrowPad(
         val repeating = direction ?: return@LaunchedEffect
         if (!enabled) return@LaunchedEffect
         delay(600)
-        while (isActive) {
+        // Direction state changes before Compose cancels/restarts this effect.
+        // A delayed frame must not emit an old direction after the new one.
+        while (isActive && direction == repeating) {
             currentArrow(repeating)
             delay(100)
         }

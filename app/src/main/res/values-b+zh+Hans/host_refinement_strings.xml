@@ -1,0 +1,34 @@
+<resources>
+    <string name="hosts_search">搜索主机</string>
+    <string name="hosts_search_hint">名称或地址</string>
+    <string name="hosts_search_empty">没有匹配的主机</string>
+    <string name="hosts_search_clear">清除搜索</string>
+    <string name="hosts_organize">整理</string>
+    <string name="hosts_groups_none">添加到分组</string>
+    <string name="hosts_pin_help">在所有主机中置顶显示</string>
+    <string name="hosts_group_select">显示 %1$s 中的主机</string>
+    <string name="hosts_group_members">管理主机</string>
+    <string name="hosts_group_members_title">%1$s 中的主机</string>
+    <string name="hosts_group_members_empty">添加主机或连接到 Tailnet 后，即可在此整理主机。</string>
+    <string name="hosts_group_unavailable">当前不可用的主机会保留在此分组中。</string>
+    <string name="hosts_group_name_error">请使用不重复且不含控制字符的分组名称。</string>
+    <string name="hosts_group_assign_new">在此创建分组以整理此主机。</string>
+    <string name="herdr_action_description">持久会话</string>
+    <string name="herdr_session_help">选择 %1$s 上的会话。分离连接后，远程任务会继续运行。</string>
+    <string name="herdr_session_running">运行中</string>
+    <string name="herdr_session_stopped">连接时启动</string>
+    <string name="herdr_session_new">新建会话</string>
+    <string name="herdr_session_new_help">使用 1–64 个字母、数字、点、连字符或下划线。</string>
+    <string name="herdr_session_invalid">请输入有效的会话名称。</string>
+    <string name="herdr_connect">连接</string>
+    <string name="herdr_refresh">刷新会话</string>
+    <string name="herdr_advanced">高级设置</string>
+    <string name="herdr_executable">Herdr 可执行文件</string>
+    <string name="herdr_executable_help">留空以自动查找 herdr，或输入其在主机上的完整路径。</string>
+    <string name="herdr_executable_invalid">请输入不含换行符的单个路径。</string>
+    <string name="herdr_close_title">关闭此连接？</string>
+    <string name="herdr_close_description">断开此 Herdr 会话的连接。远程进程会继续运行。如需保留连接以便返回，请选择分离。</string>
+    <string name="herdr_keyboard">显示终端键盘</string>
+    <string name="herdr_reconnect">重新连接</string>
+    <string name="herdr_choose_another">选择其他会话</string>
+</resources>

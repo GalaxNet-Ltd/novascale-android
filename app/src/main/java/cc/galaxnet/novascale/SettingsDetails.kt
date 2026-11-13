@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 package cc.galaxnet.novascale
 
 import androidx.compose.foundation.clickable
@@ -21,16 +21,17 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun TailnetDetailsScreen(state: TailnetState, onControlServer: () -> Unit,
-    onLogin: () -> Unit, onLogout: suspend () -> Unit, modifier: Modifier = Modifier.fillMaxSize()) {
+    onLogin: () -> Unit, onLogout: suspend () -> Unit,
+    profile: cc.galaxnet.novascale.tailnet.TailnetProfile? = null, operationBusy: Boolean = false, modifier: Modifier = Modifier.fillMaxSize()) {
     val context = LocalContext.current
-    val profile = remember(context) { TailnetProfilePreferences(context) }
+    val legacyProfile = remember(context) { TailnetProfilePreferences(context) }
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
     val identity = (state as? TailnetState.Running)?.self
     Column(modifier.verticalScroll(rememberScrollState()).padding(NovaSpacing.screenMargin),
         verticalArrangement = Arrangement.spacedBy(NovaSpacing.md)) {
-        NovaSectionLabel(stringResource(R.string.section_tailnet))
+        NovaSectionLabel(profile?.name ?: stringResource(R.string.section_tailnet))
         NovaGroupedCard(Modifier.fillMaxWidth()) {
             Column {
                 DetailValue(stringResource(R.string.detail_status), state.label())
@@ -47,16 +48,16 @@ internal fun TailnetDetailsScreen(state: TailnetState, onControlServer: () -> Un
         }
         if (state is TailnetState.Failed) Text(state.redactedMessage, color = MaterialTheme.colorScheme.error)
         NovaGroupedCard(Modifier.fillMaxWidth()) {
-            NovaActionRow(title = stringResource(R.string.screen_control_server), description = profile.controlServer,
+            NovaActionRow(title = stringResource(R.string.tailnets_manage), description = profile?.controlUrl ?: legacyProfile.controlServer,
                 icon = NovaIcons.Server, iconColor = NovaTheme.colors.statusInfo,
-                modifier = Modifier.clickable(enabled = !busy, onClick = onControlServer), descriptionMaxLines = 3)
+                modifier = Modifier.clickable(enabled = !busy && !operationBusy, onClick = onControlServer), descriptionMaxLines = 3)
         }
         if (state != TailnetState.Starting) NovaGroupedCard(Modifier.fillMaxWidth()) {
             NovaActionRow(
                 title = stringResource(if (busy) R.string.logging_out else if (identity != null) R.string.log_out else R.string.connect_tailnet),
                 icon = if (identity != null) NovaIcons.Disconnect else NovaIcons.Server,
                 iconColor = if (identity != null) NovaTheme.colors.statusDisconnected else NovaTheme.colors.statusConnected,
-                modifier = Modifier.clickable(enabled = !busy) {
+                modifier = Modifier.clickable(enabled = !busy && !operationBusy) {
                     if (identity == null) onLogin() else scope.launch {
                         busy = true; error = false
                         try { onLogout() }

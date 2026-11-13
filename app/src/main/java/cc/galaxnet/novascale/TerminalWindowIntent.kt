@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -22,7 +22,7 @@ internal object TerminalWindowIntent {
     private const val EXTRA_SESSION_KEY = "terminal_session_key"
 
     fun create(context: Context, peer: TailnetPeer, sessionKey: String): Intent =
-        Intent(context, MainActivity::class.java)
+        Intent(context, TerminalWindowActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             .putExtra(EXTRA_STABLE_NODE_ID, peer.stableNodeId)
             .putExtra(EXTRA_DISPLAY_NAME, peer.displayName)

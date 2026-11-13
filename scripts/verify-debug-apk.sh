@@ -2,7 +2,7 @@
 set -euo pipefail
 
 android_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-apk="${1:-$android_root/app/build/outputs/apk/debug/app-debug.apk}"
+apk="${1:-$android_root/app/build/outputs/apk/community/debug/app-community-debug.apk}"
 : "${ANDROID_SDK_ROOT:=${ANDROID_HOME:-$HOME/Android/Sdk}}"
 
 if [[ ! -f "$apk" ]]; then

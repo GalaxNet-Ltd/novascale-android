@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -13,7 +13,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import cc.galaxnet.novascale.ui.NovaScaleTheme
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
+    override fun onResume() {
+        super.onResume()
+        (application as NovaScaleApplication).billing.manager.refresh()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // The system starting window uses the launch theme; app windows use the UI theme.
         setTheme(R.style.Theme_NovaScale)

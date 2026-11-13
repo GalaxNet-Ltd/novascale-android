@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="browser_proxy_disabled_title">本機代理已關閉</string>
+    <string name="browser_proxy_disabled_body">瀏覽器使用 NovaScale 的共用本機代理。請開啟代理後瀏覽。</string>
+    <string name="browser_enable_proxy">開啟本機代理</string>
+    <string name="browser_tailnet_required">請先連線至一個 Tailnet，再透過該連線瀏覽。</string>
+    <string name="browser_manage_tailnets">管理 Tailnet</string>
+    <string name="browser_proxy_failed_body">本機代理啟動失敗，請重試以重新連線。</string>
+    <string name="browser_proxy_preparing">正在準備本機代理…</string>
+</resources>

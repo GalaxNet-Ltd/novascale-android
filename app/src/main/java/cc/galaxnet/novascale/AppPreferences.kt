@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -68,6 +68,7 @@ internal class AppPreferences(private val context: Context) {
             fontId = values[TERMINAL_FONT] ?: TerminalFontOption.SYSTEM.id,
             fontSizeSp = values[TERMINAL_FONT_SIZE] ?: DEFAULT_TERMINAL_FONT_SIZE_SP,
             cursorShapeId = values[TERMINAL_CURSOR_SHAPE] ?: TerminalCursorShapeOption.BEAM.id,
+            herdrImproveTextContrast = values[HERDR_IMPROVE_TEXT_CONTRAST] ?: true,
         ).normalized()
     }
 
@@ -108,6 +109,10 @@ internal class AppPreferences(private val context: Context) {
         context.novaScaleSettings.edit { it[TERMINAL_CURSOR_SHAPE] = cursorShape.id }
     }
 
+    suspend fun setHerdrImproveTextContrast(enabled: Boolean) {
+        context.novaScaleSettings.edit { it[HERDR_IMPROVE_TEXT_CONTRAST] = enabled }
+    }
+
     suspend fun addImportedTerminalTheme(theme: TerminalThemePalette) {
         require(theme.imported && theme.id.startsWith("iterm_"))
         context.novaScaleSettings.edit { values ->
@@ -134,6 +139,7 @@ internal class AppPreferences(private val context: Context) {
             values[TERMINAL_FONT] = TerminalFontOption.SYSTEM.id
             values[TERMINAL_FONT_SIZE] = DEFAULT_TERMINAL_FONT_SIZE_SP
             values[TERMINAL_CURSOR_SHAPE] = TerminalCursorShapeOption.BEAM.id
+            values.remove(HERDR_IMPROVE_TEXT_CONTRAST)
         }
     }
 
@@ -155,6 +161,7 @@ internal class AppPreferences(private val context: Context) {
         val TERMINAL_FONT = stringPreferencesKey("terminal_font")
         val TERMINAL_FONT_SIZE = floatPreferencesKey("terminal_font_size")
         val TERMINAL_CURSOR_SHAPE = stringPreferencesKey("terminal_cursor_shape")
+        val HERDR_IMPROVE_TEXT_CONTRAST = booleanPreferencesKey("herdr_improve_text_contrast")
         val IMPORTED_TERMINAL_THEMES = stringPreferencesKey("imported_terminal_themes")
         val FILE_TAP_TO_PREVIEW = booleanPreferencesKey("file_tap_to_preview")
         val FILE_PREVIEW_SIZE_LIMIT = stringPreferencesKey("file_preview_size_limit")

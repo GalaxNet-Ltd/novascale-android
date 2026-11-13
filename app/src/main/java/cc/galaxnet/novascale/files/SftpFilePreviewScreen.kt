@@ -2,11 +2,13 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 @file:androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 
 package cc.galaxnet.novascale.files
+
+import cc.galaxnet.novascale.ui.NovaPrimaryButton
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -329,7 +331,7 @@ private fun PreviewFailure(
             style = MaterialTheme.typography.bodyMedium,
             color = NovaTheme.colors.textSecondary,
         )
-        Button(onClick = onRetry, modifier = Modifier.padding(top = NovaSpacing.lg)) {
+        NovaPrimaryButton(onClick = onRetry, modifier = Modifier.padding(top = NovaSpacing.lg)) {
             Text(stringResource(R.string.try_again))
         }
     }
@@ -774,7 +776,7 @@ private fun ExternalFilePreview(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        Button(onClick = onOpenExternally, modifier = Modifier.padding(top = NovaSpacing.lg)) {
+        NovaPrimaryButton(onClick = onOpenExternally, modifier = Modifier.padding(top = NovaSpacing.lg)) {
             Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null)
             Text(
                 stringResource(R.string.open_with_another_app),
@@ -818,7 +820,7 @@ private fun RendererFailure(message: UiText, onOpenExternally: () -> Unit) {
             modifier = Modifier.padding(top = NovaSpacing.md),
             style = MaterialTheme.typography.bodyLarge,
         )
-        Button(onClick = onOpenExternally, modifier = Modifier.padding(top = NovaSpacing.lg)) {
+        NovaPrimaryButton(onClick = onOpenExternally, modifier = Modifier.padding(top = NovaSpacing.lg)) {
             Text(stringResource(R.string.try_another_app))
         }
     }

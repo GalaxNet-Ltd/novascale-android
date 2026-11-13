@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="herdr_appearance_section">Herdr 遠端</string>
+    <string name="herdr_improve_text_contrast">改善文字對比度</string>
+    <string name="herdr_improve_text_contrast_help">讓低對比度背景上的文字更清晰。關閉後使用終端原始顏色。</string>
+</resources>

@@ -1,0 +1,27 @@
+// Copyright (C) 2026 NovaScale contributors
+// SPDX-License-Identifier: Apache-2.0
+// Optional, explicit replacement of LGPL editor artifacts for local source/relink builds.
+settingsEvaluated { settings ->
+    def location = gradle.startParameter.projectProperties['NOVASCALE_LGPL_MAVEN']
+    if (location == null) throw new GradleException('Set NOVASCALE_LGPL_MAVEN to your local Maven directory')
+    def directory = new File(location).canonicalFile
+    if (!directory.isDirectory()) throw new GradleException('NOVASCALE_LGPL_MAVEN must be an existing directory')
+    def coordinates = [] as Set
+    directory.eachFileRecurse { file ->
+        if (file.name.endsWith('.pom')) {
+            def parts = directory.toPath().relativize(file.toPath()).collect { it.toString() }
+            if (parts.size() >= 4) {
+                def group = parts.take(parts.size() - 3).join('.')
+                def artifact = parts[-3]
+                if (group in ['io.github.rosemoe', 'com.itsaky.androidide.treesitter']) coordinates.add([group, artifact])
+            }
+        }
+    }
+    if (coordinates.isEmpty()) throw new GradleException('No supported editor POM coordinates found in local Maven directory')
+    def repositories = settings.dependencyResolutionManagement.repositories
+    def replacement = repositories.maven { url = directory.toURI() }
+    repositories.exclusiveContent {
+        forRepositories(replacement)
+        filter { coordinates.each { coordinate -> includeModule(coordinate[0], coordinate[1]) } }
+    }
+}

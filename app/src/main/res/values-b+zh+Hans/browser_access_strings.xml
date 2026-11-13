@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2026 NovaScale contributors; SPDX-License-Identifier: Apache-2.0 -->
+<resources>
+    <string name="browser_proxy_disabled_title">本地代理已关闭</string>
+    <string name="browser_proxy_disabled_body">浏览器使用 NovaScale 的共享本地代理。请开启代理后浏览。</string>
+    <string name="browser_enable_proxy">开启本地代理</string>
+    <string name="browser_tailnet_required">请先连接一个 Tailnet，再通过该连接浏览。</string>
+    <string name="browser_manage_tailnets">管理 Tailnet</string>
+    <string name="browser_proxy_failed_body">本地代理启动失败，请重试以重新连接。</string>
+    <string name="browser_proxy_preparing">正在准备本地代理…</string>
+</resources>

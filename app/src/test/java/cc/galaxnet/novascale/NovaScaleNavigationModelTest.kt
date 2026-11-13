@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale
 
@@ -67,6 +67,16 @@ class NovaScaleNavigationModelTest {
         model.resetToHome()
 
         assertEquals(NovaScaleNavigationState(), model.uiState.value)
+    }
+
+    @Test fun changingProfileClearsPeerDestinationsInEverySection() {
+        val model = NovaScaleNavigationModel()
+        model.bindProfile("a")
+        model.open(AppDestination.Files(testPeer("same-id")))
+        model.open(AppSection.SETTINGS, AppDestination.Tailnets)
+        model.bindProfile("b")
+        assertNull(model.uiState.value.homeDestination)
+        assertEquals(AppDestination.Tailnets, model.uiState.value.settingsDestination)
     }
 
     private fun testPeer(id: String) = TailnetPeer(

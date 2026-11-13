@@ -1,5 +1,5 @@
 // Copyright (C) 2026 NovaScale contributors
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: Apache-2.0
 
 // Package localproxy serves authenticated HTTP/CONNECT and TCP SOCKS5 on one
 // loopback listener. It owns no tailnet: its caller supplies the shared dialer.

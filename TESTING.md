@@ -1,17 +1,189 @@
 # NovaScale Android MVP Test Guide
 
+## Independent terminal renderer
+
+The terminal uses NovaScale's own cached Android surface; see
+[`terminal-ui/README.md`](terminal-ui/README.md) for cache bounds and provenance.
+After building/installing the community debug app and test APK as below, run:
+
+```bash
+adb shell am instrument -w -e suite renderer \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+Use an unlocked, foreground disposable test device. This suite uses synthetic
+terminal text and the clipboard. It compares cached/direct software and hardware
+pixels, all bundled fonts, edited-row invalidation, GPU display-list reuse,
+IME composition/rebinding, Unicode selection and cache bounds. Android 9 tests
+the direct-Canvas fallback; Android 10+ also checks retained RenderNodes.
+Results and a fixture screenshot are in the test app's private cache as
+`terminal-renderer-check.txt` and `terminal-renderer-hardware.png`. Timing is a
+short row-cache on/off software-Canvas comparison; font measurement remains
+cached in both cases. It does not establish end-to-end or battery performance.
+
+Run `-e suite terminal-regressions` with the same runner to check that terminal
+drawing stays inside its viewport and preserves the Compose header with the IME
+open/closed. It also checks composing and hardware Ctrl/Alt shortcuts, exactly-once
+delivery, pending-word ordering, Shift/CJK input, and input-method recovery after
+a shortcut. The test uses synthetic input; it does not type into a user's session.
+
+Also run `keyboard` (including gesture/mouse checks), `graphics`, and the
+isolated live Herdr fixture after changing the surface or input lifecycle.
+Use the normal release device/page-size matrix and sustained profiling before
+public distribution; the synthetic renderer suite does not replace them.
+
+## Billing development variants
+
+The `billing` instrumentation suite uses a fixture store and never makes a real
+purchase. Current debug IDs are `cc.galaxnet.novascale.debug` (Play) and
+`cc.galaxnet.novascale.community.debug` (community); their instrumentation package
+adds `.test`. The examples below use the community flavor. Play release
+packaging checks the source/dependency licensing boundary. Native verification takes
+the variant APK path as an argument; its default is the community APK. See the
+[dependency record](third_party/play-billing/README.md) and
+[LGPL source/relinking guide](third_party/lgpl/README.md) for distribution requirements.
+
+Run from this checkout, targeting a disposable emulator/test device:
+
+```bash
+./gradlew :app:testCommunityDebugUnitTest :app:lintCommunityDebug :app:assembleCommunityDebug :app:assembleCommunityDebugAndroidTest
+adb install -r app/build/outputs/apk/community/debug/app-community-debug.apk
+adb install -r app/build/outputs/apk/androidTest/community/debug/app-community-debug-androidTest.apk
+adb shell am instrument -w -e suite billing \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+The purchase sheet keeps Later and Buy Pro outside the scrolling content. The
+`billing` fixture checks their stable screen bounds, dismissal without checkout,
+the open-source/fork copy and a small 320 × 360 dp viewport at 180% text scaling,
+alongside cancellation, pending payment, purchase and restoration.
+
+## Pro feature enforcement
+
+Use Settings → Debug: Pro status to select Free, Pro or Default. The same controls
+appear in debug upgrade sheets. **Debug: Herdr usage** immediately below them
+shows the local quota, partial foreground seconds, retained/active attachments,
+covered visits and next reset. Pro access leaves free counters visible while
+explaining that new Pro visits do not use them. There is no diagnostic quota reset.
+Free mode allows one tailnet, three custom groups and three meaningful Herdr
+visits daily. A visit counts after 30 accumulated seconds of connected foreground
+use. Check second-profile/fourth-group admission, legacy preservation and
+free-profile replacement. Reconnect, Sessions reopen and rotation must not spend
+another visit; explicit close/new attach may start another visit.
+
+```bash
+adb shell am instrument -w -e suite pro-enforcement \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+The fixture uses isolated metadata and no checkout. It tests concurrent group
+admission, actual profile schema migration, grandfathering, paid-only selection,
+free selection/replacement, Room usage persistence and debug controls. It also
+checks the usage panel while a controlled clock advances through a partial visit,
+inactive time, the 30-second charge and Free/Pro switches. The live
+Herdr UI fixture additionally injects a free usage manager and controlled clock
+while using the real local SSH/Herdr bridge, verifying retained visit IDs across
+screen detach and transport recovery, and a new ID after explicit close.
+
+## Multiple saved tailnets
+
+The Home tailnet button and Settings → Tailnets open profile management. Add a
+named Tailscale or custom HTTPS profile, select it, confirm the switch and sign
+in. Profiles on the same control server have separate identities. Switching
+preserves saved login and closes tools using the old node; direct SSH sessions
+remain independent. Rename is available in each row's menu. Switch away before
+removing a profile. Changing servers requires adding a new profile.
+
+With the debug and androidTest APKs installed on a disposable emulator:
+
+```bash
+adb -s emulator-5556 shell am instrument -w -e suite tailnet-profiles \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+adb -s emulator-5556 shell am instrument -w -e suite tailnet-profiles-ui \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+These fixtures isolate metadata and encrypted settings from existing accounts.
+They cover legacy migration, duplicate-server identities, scoped SSH/trust/proxy
+credentials, active selection after reopen, failed/interrupted deletion, native
+node replacement and rejection of stale-profile dials. UI checks exercise
+switch cancellation, add/custom URL validation, rename and confirmed removal.
+Unit tests cover application-owned switching, pending-login cancellation,
+persistence/startup failure and recovery. No billing is involved.
+
+Before public release, use two authorized non-sensitive networks (including
+Headscale), verify peers and real SSH/SFTP/Herdr/browser sessions after repeated
+switches, rotate/recreate activities, force-stop and reopen, and test background
+and network transitions across the supported device matrix. An unauthenticated
+local-node fixture cannot prove remote account restoration or live routing.
+
+## Herdr feasibility checks
+
+Herdr is under development. Tailnet and traditional host detail screens expose
+an owner-test Herdr action in debug builds only; release builds do not expose it.
+These checks exercise a prototype; they do not certify the feature for release. The incoming
+protocol decoder does not yet enforce a proven aggregate memory budget across
+decoding, retained surfaces, rendering and concurrent sessions.
+
+```bash
+cargo test --locked --manifest-path native/nova-core-rust/Cargo.toml
+NOVA_HERDR_TEST_BIN=/path/to/herdr cargo test --locked \
+  --manifest-path native/nova-core-rust/Cargo.toml \
+  isolated_live_bridge_first_frame_and_reattach -- --ignored
+python3 scripts/test-herdr-native.py --serial emulator-5556 --herdr /path/to/herdr
+python3 scripts/test-herdr-native.py --serial emulator-5556 --herdr /path/to/herdr --stress
+python3 scripts/test-herdr-native.py --serial emulator-5556 --herdr /path/to/herdr --ui
+```
+
+The live fixtures use a dedicated temporary XDG namespace and a uniquely
+identified disposable Herdr session. They do not attach to the user's default
+session. The Android check requires installed debug and androidTest APKs,
+`adb`, Python and Paramiko. Add `--flavor play` when testing the Play debug package. It starts an ephemeral local SSH server and removes
+its own dynamic ADB reverse mapping; it does not test tailnet routing.
+Rapid tab/workspace input goes through the focused terminal view's input
+connection only after its displayed binding matches the current target. The
+fixture simulates editor creation if the sheet left the keyboard hidden; it
+does not bypass the view or retry a submitted command after a resize.
+It also exits a named remote shell and checks that its tab disappears from both
+the navigation model and the visible bar.
+Herdr keyboard checks compare actual IME insets with the accessory's accessible
+controls. They cover initial focus, opening from the toolbar, system Back and
+Hide Keyboard, recovered terminal height, clearing one-shot modifiers, returning
+from the background with input hidden, and reattaching a retained session.
+On devices with an attached alphabetic keyboard, initial focus may leave the
+soft keyboard hidden; the accessory must remain hidden too. On a phone without
+one, also verify that initial attachment opens input automatically and that
+tapping the terminal restores the keyboard and accessory after dismissal.
+The UI fixture also fills a pane with history, hides its retained screen,
+scrolls it through a separate fixture API client, and reopens it twice. Each
+reopen must show the latest output without replacing the SSH connection. Native
+checks cover reset acknowledgement/surface ordering, stale input, and preserving
+manual scrollback during ordinary resizes.
+The lifecycle regression then keeps one attachment active while repeatedly
+closing/replacing the other across two local SSH endpoints and switching named
+sessions through discovery/selection on the same endpoint. No retry or delay is
+allowed between close and replacement. JNI checks also verify immediate slot
+reuse while continuing to reject a third genuinely active attachment. A closing
+attachment retains its reservation until all native owners have released it;
+replacement admission waits at most five seconds on the IO dispatcher.
+The optional stress run resizes two concurrent native attachments to 500×300,
+sends 149,000 color-changing cells through one, and prints point-in-time process
+PSS and the largest observed JNI snapshot extraction plus Kotlin decode time.
+It does not retain two Compose screens or measure Canvas frame time. These are
+not peak measurements or a substitute for long-running and physical-device tests.
+
 This guide covers the `0.1.0-dev` owner-test build. Use a non-sensitive test tailnet and hosts for the first pass.
 
 ## 1. Build and install
 
-From `android/`:
+From the Android source checkout root:
 
 ```bash
 export JAVA_HOME="$HOME/android-studio/jbr"
 export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
-./gradlew test :app:lintDebug :app:assembleDebug
+./gradlew test :app:lintCommunityDebug :app:assembleCommunityDebug
 ./scripts/verify-debug-apk.sh
-"$ANDROID_SDK_ROOT/platform-tools/adb" install -r app/build/outputs/apk/debug/app-debug.apk
+"$ANDROID_SDK_ROOT/platform-tools/adb" install -r app/build/outputs/apk/community/debug/app-community-debug.apk
 ```
 
 The debug APK is signed with the local Android debug key and must not be uploaded to Google Play.
@@ -41,6 +213,152 @@ signing key if the authenticated test identity must survive.
 8. Use **Log out** under **Settings** only after the feature tests below; it invalidates the embedded node identity while retaining the isolated local profile directory for a later login.
 
 NovaScale runs one app-scoped userspace node. It does not install a VPN and does not replace the device's existing VPN.
+
+## Host groups
+
+On **Home → Hosts**, tap the leading **Filter and groups** toolbar icon and use
+**New group** to create two disposable groups. Open one tailnet peer and one
+traditional host and use **Groups** to add both hosts to the same group; add one
+host to both groups. In the filter sheet, expand the group and confirm both
+available members appear; opening a member must navigate to its host detail.
+Tap the group name to filter; its separate disclosure button expands members.
+Use **Manage hosts** to assign several hosts at once. Check **All hosts**,
+**Tailnet hosts**, **Traditional hosts**, **Ungrouped**, and each named group.
+The active filter appears beside the toolbar icon, and the filter action is
+absent on the Sessions tab. Toggling **Online only** must affect tailnet peers
+while traditional hosts remain visible in matching filters. Remove a member
+from an expanded group and confirm it appears under **Ungrouped** once it has
+no remaining memberships.
+
+Use a group's options menu to rename it, restart the app, and verify its name and memberships persist.
+Temporarily hide an offline peer with **Online only**, then show offline peers
+again; its group membership must be retained. If a tailnet peer has no stable
+identity, it must remain visible and its Groups action must explain why it cannot
+be assigned. In a signed-out test environment, verify groups and traditional
+hosts remain usable without connecting the tailnet. Delete an empty group and a
+populated disposable group: the selected deleted filter must reset, and the hosts,
+other memberships, and any live connections must remain intact. Do not log out a
+working tailnet or delete existing groups just to perform this test.
+
+Pin one tailnet peer and one traditional host from their detail screens. In
+**All hosts**, both must appear in the pinned section before every unpinned
+host, with an accessible pinned indicator; relative order follows the original
+host list within each partition. **Online only** still hides offline peers.
+Other group and host-type filters retain their original order without pinned
+badges. Unpin each host and verify it returns to its usual position. Restart
+the app and temporarily omit a pinned peer to verify pins persist while the peer
+is absent. Pinning remains available for traditional hosts when signed out;
+peers without a stable tailnet identity explain why they cannot be pinned.
+
+## Hosts and Herdr interaction checks
+
+The `host-refinement` suite uses synthetic mixed hosts to check address/name
+search combined with group filters, one-tap group selection, multi-host editing
+through a search, group creation during assignment, retained Herdr session
+navigation, cancellation, and explicit selection of stopped/named sessions.
+The `host-groups` suite also verifies bulk edits preserve absent peers and
+other groups/profiles, and roll back if a selected host was deleted.
+
+```sh
+adb shell am instrument -w -e suite host-refinement cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+The optional Herdr `--ui` fixture drives the production Compose screen through
+the isolated local SSH bridge, uses accessory/hardware input, swipes through
+host-owned history and back to the bottom, checks pointer-wheel history, and
+delivers wheel events to a real mouse-reporting alternate-screen child process.
+It uses the main activity's edge-to-edge/IME sizing so touch gestures reach the
+visible terminal. It also creates and renames a tab, types into it, creates and
+switches workspaces, cancels last-tab close,
+closes only its disposable extra tab, detaches and reopens, then reconnects to
+the same remote session and checks local-close cancellation. Run with both
+Herdr 0.9.1 and 0.9.5. The `herdr-controls` suite uses synthetic agent metadata
+to verify status/attention, cross-workspace agent selection, current-workspace
+tabs, stable action targets and capability gating. It needs no tailnet or agent account.
+The controls fixture also measures the compact 40 dp tab strip (98 dp including
+the main toolbar and progress slot). The live fixture backgrounds and resumes
+the screen, checking the same native connection and metered visit are retained.
+Use a non-sensitive fixture; it creates and cleans up its own named remote
+session. This does not verify live tailnet routing or production resource budgets.
+
+Add `--recovery` to the Herdr `--ui` command to exercise foreground recovery.
+It leaves a healthy attachment in the background for 65 seconds, then stalls
+only the fixture's Herdr data stream while SSH keepalives continue responding.
+It verifies replacement of the stalled bridge, retention of a shell variable
+and the same daily usage visit, input through the terminal editor, cancellation
+when leaving during a probe, and recovery after reopening. The two faults and
+exactly three bridge connections are checked on the host. These fixtures use
+their own session and XDG directories and do not suspend an owner session.
+
+Manual checks: use **+** in the Hosts toolbar to add a host, and the leading
+filter button for groups. Tap a group name to filter; use its disclosure control
+to expand members and **Manage hosts** to assign several at once. Groups can
+also be created from a host's assignment dialog. Search by host name/address
+without losing the selected filter. Check long names, large text, light/dark
+themes, screen-reader selection states, offline hosts and missing credentials.
+On either host type, verify Herdr is beside Terminal. In Herdr, inspect sessions
+before pressing Connect, create a named session, refresh, and edit the executable
+under Advanced. The session, workspace and agent pickers open at medium height
+and can expand; short windows/large text open expanded. Connect/New workspace
+must remain visible at both heights, with the list scrolling above the action.
+The `host-refinement` fixture checks medium/expanded geometry, explicit selection,
+dismissal without attachment and 180% text scaling. The `herdr-controls` fixture
+also verifies that showing/completing navigation progress never moves the
+terminal and repeatedly opens the workspace sheet after software-keyboard use,
+keeping its bottom action visible. The live fixture types immediately after
+repeated tab/workspace switches and selecting an already focused tab, checking
+the destination and absence of retry notices. Native tests ensure the new projection/frame is
+published before action completion; stale input is still rejected.
+Reconnect must keep the selected session/executable. Detach must
+leave a resumable entry under **Sessions**; Close must request confirmation and
+leave remote processes running. Navigation detach/reattach is supported within
+the current activity; Herdr attachment ownership across activity recreation,
+multiple windows and process death remains a separate acceptance gate.
+
+In a disposable Herdr session, use the native tab strip and Workspaces button
+to navigate and create remote tabs/workspaces. Tab options offer Rename and
+Close; Close terminates remote processes and must show a confirmation, including
+the last-tab/workspace consequence. Tap the focused-agent area for the grouped
+Agents picker and attention statuses. Only methods advertised by the server
+are enabled. A refused action must keep the connection open and show the server
+message; an unknown/timed-out result must offer reconnection without replaying
+the mutation. Verify input goes to the newly displayed pane after each switch.
+
+## Traditional SSH hosts
+
+Use a disposable SSH server and a signed-out test environment; do not log out an
+existing owner tailnet just for this check. From **Home → Hosts → Add Host**, save
+a name, hostname, port, username and authentication. **Direct** connects over the
+device network without a tailnet login; **Via Tailscale** requires the shared node
+and reaches the destination through it. Verify an unavailable selected route fails
+without silently retrying through the other route.
+
+- Test password and encrypted OpenSSH private-key authentication, including a
+  passphrase. Unknown keys require explicit trust; changed keys must warn and
+  require an explicit decision. Rejecting either must close the attempt.
+- Edit the host name, endpoint, credentials and route; verify they persist after
+  reopening the app. Delete a disposable host and verify its saved credentials
+  are removed while other hosts remain. No password or private key should appear
+  in logs or backup/device transfer.
+- On the host detail screen, exercise Terminal and Files. In a **debug build**,
+  **Herdr Remote** is an owner-test action: use an explicitly named disposable
+  remote session, not a working/default session. The action is absent from
+  release builds and the Herdr feasibility/release gates above still apply.
+
+The `traditional-host` instrumentation suite verifies disposable host CRUD,
+encrypted credential storage, route persistence, interrupted save/delete replay,
+and a version-1-to-2 migration in a separate temporary database. The `home` suite verifies
+that Add Host is available in a simulated signed-out UI. Both run in the test
+activity without logging out the application or deleting existing hosts:
+
+```sh
+adb shell am instrument -w -e suite traditional-host cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+adb shell am instrument -w -e suite home cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+The automated checks do not establish the full device, network-transition,
+host-key, key-algorithm, SFTP or release matrix. Record the device, route and
+server for each live check before public distribution.
 
 ## 3. SSH terminal
 
@@ -78,14 +396,14 @@ server-side session such as `tmux`.
 After installing both debug APKs, run the no-login fixture:
 
 ```sh
-adb shell am instrument -w -e suite graphics cc.galaxnet.novascale.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+adb shell am instrument -w -e suite graphics cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
 ```
 
 It exercises the packaged Ghostty/Wuffs decoder, fragmented APC input,
 RGB/RGBA/PNG, zlib/chunking, Unicode placeholders, crop/scale/z metadata,
 image-ID replacement, ED2/delete/reset, alternate-screen isolation/restoration,
 scrollback visibility, malformed/oversized/local-file rejection, decompression
-limits and recovery, and Android Canvas pixels including alpha and stale-image
+limits and recovery, bounded image/placement export, and Android Canvas pixels including alpha and stale-image
 cleanup. It also verifies unchanged native snapshots omit image payloads.
 
 For a real SSH session, copy `testdata/terminal/kitty-smoke.py` to a disposable
@@ -100,6 +418,24 @@ its exact available flags. Physical ARM64, the full API/page-size matrix and
 live tmux/tool integration remain device acceptance checks.
 
 ## 4. SFTP
+
+Symbolic links: open relative/absolute/chained links to both directories and files.
+Folder links must sort with folders; all links show an arrow and an accessible
+link label. Preview/download and displayed file sizes use the target. Edit/save
+through a link, then verify that the link still exists and only its target content
+changed. Rename/delete must affect the link itself; deleting a folder link must
+leave its target directory and children intact. Missing, looping and inaccessible
+targets must remain listed with an unavailable-target message. Creating/uploading
+or renaming onto a dangling link must fail without replacing it.
+
+For a repeatable check, start `python3 testdata/sftp/symlink-server.py` on the host
+(requires Paramiko), note its ephemeral port/fingerprint, and reverse a disposable
+ADB port to it. Run `ProxyInstrumentation` with `-e suite sftp-links -e sshPort
+<device-port> -e sshFingerprint <printed-fingerprint>` against a disposable debug
+package. The fixture is loopback-only, refuses shell access, and contains only
+synthetic data in a temporary directory. Stop it and remove the ADB reverse after
+testing. The fixture additionally checks a server whose REALPATH leaves the final
+link unresolved: saving must fail without replacing that link or losing the edit.
 
 1. From the same host detail view, open **Files**. It must use the saved SSH profile and connect automatically without showing editable SSH fields.
 2. Confirm the same first-use and changed-host-key policy as the terminal.
@@ -138,10 +474,10 @@ The owner-test build exposes Home, Browser, and Settings. Public release still r
 A no-login device fixture exercises production WebView authentication and a separate-UID app's rejection by the native proxy:
 
 ```sh
-./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w cc.galaxnet.novascale.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+./gradlew :app:assembleCommunityDebug :app:assembleCommunityDebugAndroidTest
+adb install -r app/build/outputs/apk/community/debug/app-community-debug.apk
+adb install -r app/build/outputs/apk/androidTest/community/debug/app-community-debug-androidTest.apk
+adb shell am instrument -w cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
 ```
 
 On 2026-09-22 this passed on API 33 x86_64. The CONNECT fixture proves authentication only and intentionally returns 502 afterward; it does not prove HTTPS content, certificate handling, or live tailnet routing. Go race tests cover HTTP range/WS forwarding, SOCKS/CONNECT, cancellation, address policy, credential stripping, and preferred-port fallback. Repeat on API 28/35/36 and physical ARM64 before release.
@@ -182,7 +518,7 @@ preparation.
 Run the no-login native/Android gesture fixture after installing both debug APKs:
 
 ```sh
-adb shell am instrument -w -e suite mouse cc.galaxnet.novascale.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+adb shell am instrument -w -e suite mouse cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
 ```
 
 For the accessory keyboard, run `-e suite keyboard` with the same runner. This
@@ -280,8 +616,22 @@ to the reported loopback port with `adb reverse`, then pass `-e sshPort PORT` an
 `-e sshFingerprint SHA256:...` to the existing instrumentation runner with
 `-e suite ssh-retry`. It checks wrong-password failure, repeated Retry, corrected
 credentials in the same group/runtime, and healthy reattachment without a new
-connection. The fixture uses synthetic credentials and restores its known-host
-entry on exit.
+connection. It also checks confirmed shell exits (including nonzero status),
+selected/background tab removal, preserving Retry after a transport drop, and
+navigation away when the last shell exits. The fixture uses synthetic
+credentials and restores its known-host entry on exit.
+It transfers a generated 1254×1254 RGB PNG larger than the SSH receive window,
+in 4096-byte base64 chunks with outer zlib compression. Upload and placement
+acknowledgements must both arrive, the RGBA asset must decode completely, and
+subsequent shell input must remain responsive. The fast local fixture has a
+20-second test deadline; a real cellular/relay transfer can take longer. No user
+image is included in this fixture.
+It also starts synchronized output and leaves the server completely idle without
+releasing the hold. The app must retain the completed frame briefly, then show
+the pending frame after the one-second native deadline without another input,
+resize or network read.
+It also checks that a Home/Recents round trip preserves the live connection and
+that showing the tab strip uses 40 dp of vertical space at normal font scale.
 
 For an explicitly authorized owner-device check only, `-e suite ssh-retry-live
 -e host HOST_NAME` uses the existing shared tailnet and in-process saved password.
@@ -292,3 +642,125 @@ terminal connections; use a disposable shell. The `accessory` suite checks only
 the compact keyboard, at 339 dp and 1.15 font scale, without changing clipboard
 contents. It verifies every primary key fits, compact height, Shift, arrow
 navigation/repeat, cancellation and lifecycle suspension.
+
+### Session screen resume
+
+Run the `session-resume` instrumentation suite on a disposable debug package.
+It uses the real launcher activity and an application-owned two-tab SSH group,
+without credentials or a network connection. A separate activity in the test
+APK sends the same MAIN/LAUNCHER intent as a Home icon; a direct `am start` alone
+can bring the task forward without exercising duplicate-activity behavior.
+The suite checks repeated launcher return, notification return, Recents, activity recreation,
+independent document windows sharing the runtime, and explicit detach remaining
+detached. Pair it with `ssh-retry` and the Herdr live UI fixture for transport
+and usage-ledger continuity. These checks do not simulate process death or Doze.
+
+```sh
+adb shell am instrument -w -e suite session-resume cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+
+## libghostty-vt dependency updates
+
+The Android build pins `vt-1.0.0` and Zig 0.17.0. On an engine update, rebuild
+both native ABIs and run `scripts/verify-debug-apk.sh` on the resulting APK
+(use an absolute APK path). Run the `keyboard`, `mouse` and `graphics`
+instrumentation suites against that APK; these exercise the packaged Ghostty
+library and Canvas, not a host-side fallback terminal.
+
+The native probe reached by `keyboard` checks exact color replies for fragmented
+queries, a set/query within one read, theme resets and an unset Android theme;
+cell-size reporting after resize; SSH history exceeding the upstream byte-limit
+default; and Herdr's zero local history. Graphics includes Unicode and relative
+placements, parent deletion, clipped oversized source crops, explicit animation-frame selection,
+image-generation replacement, resource caps and software/hardware pixel checks.
+The isolated `scripts/test-herdr-native.py --ui --flavor community` fixture
+checks actual Herdr input, detach/reconnect and close/replace across host entries.
+These complement, rather than replace, the physical device/page-size matrix.
+
+SIMD is enabled on both Android ABIs. The packaged native probe compares one
+large read against 1/7/15/16/17/31/32/33/63/64/65/255-byte fragments containing
+ASCII, CJK, combining marks, joined emoji, malformed UTF-8 and escape sequences.
+Screens, cursor state and replies must match. Run `keyboard` or `mouse` on x86_64
+and a physical ARM64 device, plus `graphics` for SIMD Base64/Kitty decoding.
+The Rust/NDK link rejects unresolved symbols; the Zig adapter installs and Rust
+links the pinned simdutf and Highway static libraries explicitly. Verify the APK
+still has 16 KiB alignment and packages both dependency license notices.
+
+Herdr scrolling deliberately keeps Ghostty's local history disabled: the remote
+pane owns that history. Rust tests cover pane hit-testing, application/popup
+wheel routing, stale geometry rejection, and ordered relative input during
+rapid gestures, direction reversals and delayed surfaces. History wheel events
+use the negotiated semantic input codec; they do not derive absolute destinations
+from displayed scroll metrics or wait for endpoint acknowledgements. The live UI
+fixture checks exact accumulated distances for rapid wheel bursts and reversals.
+The separate Sessions-reopen operation still restores the bottom with `pane.scroll`. For a scroll change, also run the existing `mouse` and
+`keyboard` instrumentation suites to check shared Canvas behavior for SSH.
+
+Herdr's **Improve Text Contrast** switch is under **Settings → Terminal
+Appearance → Herdr Remote** and defaults on. The live `--ui` fixture reproduces
+a TUI retaining a dark explicit background while using the default foreground,
+then changes the physical terminal theme. It checks normal text at 4.5:1 and
+faint text at 3:1 using Canvas's actual two-thirds channel dimming, preserves
+explicit text/background colors, and toggles the local correction without new
+remote output. A real settings-screen check verifies the toggle persists and
+restores the prior preference afterward. This deterministic fixture does not
+launch Codex or submit an agent prompt.
+
+Native appearance tests also cover named/indexed colors, hidden/reversed cells,
+continuations, popups, patches, bounded cache storage, raw-frame preservation and
+focus-aware forwarding of the physical theme's complete 256-color palette.
+Theme and contrast settings apply to retained attachments; hidden attachments
+do not claim foreground ownership from another Herdr client. A correction only
+changes the local default foreground where needed; it preserves a remote app's
+cached background. Toggle the safeguard off when exact original colors matter.
+
+
+## Final UI and browser library
+
+With the Community debug and androidTest APKs installed on a disposable emulator:
+
+```bash
+adb shell am instrument -w -e suite browser-library \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+adb shell am instrument -w -e suite ui-polish \
+  cc.galaxnet.novascale.community.debug.test/cc.galaxnet.novascale.browser.ProxyInstrumentation
+```
+
+`browser-library` uses isolated Room/Keystore storage to check encrypted URLs and
+titles, persistence after reopen, concurrent/repeated visits, profile isolation,
+200-address history retention, favorite editing, history clearing, invalid URLs,
+profile removal/late writes, and corrupt ciphertext. `ui-polish` captures the real
+browser start page and group controls in both themes and at 200% text size for
+visual inspection; captures alone are not an accessibility certification.
+The default proxy fixture also exercises Add favorite and Find in Page through
+the live WebView, alongside authentication, tabs and retained foreground page state.
+
+Manually verify the leading filter half-sheet, group expansion and management,
+selected backgrounds, filtered-header height, and restoring All hosts. Filtering
+must not reconnect a tailnet or interrupt an SSH/Herdr session. Review filled
+primary actions, outlined secondary actions, neutral destructive actions with red
+text, and feature-colored Settings icons, including
+large fonts, keyboard focus and TalkBack. Typography keeps the chosen terminal
+font/size separate from the interface's tighter monospace spacing.
+
+For browser acceptance, save/edit/remove a favorite; search/delete/clear history;
+switch between two profiles containing the same hostname; change only a port or
+scheme on a URL with encoded path/query/fragment; cancel address editing; use
+Find next/previous/close; return to a live tab after visiting another app section;
+and return after the foreground proxy owner was destroyed. The latter requires
+explicit navigation and does not promise DOM/form restoration after process death.
+Exercise real HTTP/HTTPS/WebSocket services, certificate rejection, custom video,
+network changes and supported API/page-size devices before public release.
+
+The `review-fixes` instrumentation suite exercises disabled-proxy confirmation,
+cancel/enable/retry, profile mismatch and recovery, tailnet management and hidden
+browser re-entry. It captures the real cursor selectors and destructive dialogs
+in both themes plus tailnet/Herdr onboarding. The browser fixture constructs its
+session through the production identity factory with distinct profile/node IDs;
+the active profile is supplied independently to catch identity-scope regressions.
+Run it with `-e suite review-fixes` using the same runner above, alongside the
+default `browser` suite for authenticated HTTP/CONNECT and lifecycle behavior.
+Manually check Go after connecting a real tailnet, disable Local proxy in the
+global Settings page and enter Browser, then cancel and explicitly enable it.
+Existing external-client proxy credentials must survive the identity fix.

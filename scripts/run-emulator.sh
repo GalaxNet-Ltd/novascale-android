@@ -21,9 +21,14 @@ export ANDROID_HOME="$ANDROID_SDK_ROOT"
 emulator="$ANDROID_SDK_ROOT/emulator/emulator"
 adb="$ANDROID_SDK_ROOT/platform-tools/adb"
 avdmanager="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
-apk="$android_root/app/build/outputs/apk/debug/app-debug.apk"
-package_name="cc.galaxnet.novascale"
-activity_name="$package_name/.MainActivity"
+: "${NOVASCALE_BUILD_FLAVOR:=community}"
+case "$NOVASCALE_BUILD_FLAVOR" in
+    community) package_name="cc.galaxnet.novascale.community.debug" ;;
+    play) package_name="cc.galaxnet.novascale.debug" ;;
+    *) echo "NOVASCALE_BUILD_FLAVOR must be community or play" >&2; exit 1 ;;
+esac
+apk="$android_root/app/build/outputs/apk/$NOVASCALE_BUILD_FLAVOR/debug/app-$NOVASCALE_BUILD_FLAVOR-debug.apk"
+activity_name="$package_name/cc.galaxnet.novascale.MainActivity"
 avd_home="${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-$HOME/.android}/avd}"
 
 command_name="run"
@@ -46,7 +51,7 @@ Commands:
   status    Show the AVD location and running device serial
 
 Options:
-  --no-build             Install the existing app-debug.apk
+  --no-build             Install the existing APK for the selected flavor
   --no-launch            Install without opening NovaScale
   --headless             Launch without an emulator window
   --cold-boot            Ignore Quick Boot state once; userdata is still preserved
@@ -58,7 +63,8 @@ Options:
 
 Environment equivalents:
   ANDROID_SDK_ROOT, NOVASCALE_AVD_NAME, NOVASCALE_SYSTEM_IMAGE,
-  NOVASCALE_AVD_DEVICE, NOVASCALE_EMULATOR_PORT, NOVASCALE_BOOT_TIMEOUT
+  NOVASCALE_AVD_DEVICE, NOVASCALE_EMULATOR_PORT, NOVASCALE_BOOT_TIMEOUT,
+  NOVASCALE_BUILD_FLAVOR (community by default, or play)
 
 Persistence contract:
   This script never uses -wipe-data, adb uninstall, pm clear, or avdmanager
@@ -289,7 +295,7 @@ start_emulator() {
 build_and_install() {
     if $build_apk; then
         note "Building the latest NovaScale debug APK"
-        (cd "$android_root" && ./gradlew :app:assembleDebug)
+        (cd "$android_root" && ./gradlew ":app:assemble${NOVASCALE_BUILD_FLAVOR^}Debug")
     fi
     [[ -f "$apk" ]] || die "APK not found: $apk (remove --no-build or build it first)"
 

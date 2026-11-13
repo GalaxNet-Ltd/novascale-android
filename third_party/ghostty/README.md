@@ -1,70 +1,111 @@
 # Ghostty source record
 
 - Upstream: https://github.com/ghostty-org/ghostty
-- NovaScale build pin: commit `a746d0f7281954eb251915f4cd9fcea4924ad999`
-- Zig package hash: `ghostty-1.3.2-dev-5UdBC4aaEQVBspo81eyoKCFIEVCHBbbZxLh7jzc1kOum`
+- Release: `vt-1.0.0` (libghostty-vt 1.0.0), released 2026-11-06
+- NovaScale build pin: commit `0fa3d577a5614150ff8e2c152de5fb9d5c6d2dec`
+- Signed tag object: `6b38d55f04e66ebecc472d8be19946edcc6d2e9d`
+- Zig package hash: `ghostty-1.4.1-dev-5UdBC58_nQWN3FHzqvvLtKzhOKptGc_uH9t7ejdTBGd3`
 - License: MIT (retained in `LICENSE`)
-- Module used: `ghostty-vt`
+- Artifact used: upstream `ghostty-vt-static` public C ABI; SIMD and Kitty graphics enabled
+- Compiler: Zig 0.17.0, Linux x86_64 archive SHA-256
+  `1cbe9df9f27e6b78d14ccbca43b6703a404ef79ef1c463de901d7f088d4e2026`
+- Android targets: ARM64 and x86_64, API 28, NDK r28c; static adapter linked
+  into Rust with 16 KiB ELF maximum page size.
 
-The current stable GUI release observed during integration was Ghostty v1.3.1
-at commit `332b2aefc6e72d363aa93ab6ecfc86eeeeb5ed28`. Its installed public C header
-exposes parsers and input helpers but not the full mutable terminal/render-state
-surface required by an interactive SSH client. NovaScale therefore pins the
-exact newer revision already exercised by Chuchu's Android bridge and isolates
-it behind `native/nova-ghostty-zig`. The adapter is the only code allowed to
-depend on Ghostty's evolving Zig API.
+This is the stable **VT library** release, independent of the desktop app's
+release cycle. The package's `1.4.1-dev` version is desktop metadata at that
+immutable release commit, not a prerelease libghostty-vt dependency.
 
-NovaScale does not import Ghostty's renderer or platform application. It uses
-the VT terminal state, render-state snapshot, and terminal response generation.
-Kitty graphics is enabled for direct RGB/RGBA/PNG uploads, including zlib and
-chunked transfers, cropping, scaled placements, z ordering, and Unicode
-placeholders. PNG uses the Wuffs module pinned by this Ghostty revision (see
-`third_party/wuffs/`). File, temporary-file, and shared-memory media remain
-disabled. Protocol parsing, queries/replies, storage, scrollback, deletion,
-alternate-screen ownership and reset remain inside Ghostty. Animation and
-relative placement support are limited by this upstream pin.
+NovaScale uses the stable **public C ABI** through its independently written
+`native/nova-ghostty-zig/src/nova_vt.c` adapter. The historical directory name
+remains because Zig builds the official static library and the small Wuffs PNG
+callback shim. No Ghostty Zig terminal internals are imported by the adapter,
+and no upstream package is patched. The previous Chuchu-derived Zig terminal
+and snapshot implementation has been removed; its provenance remains in
+`../chuchu/` for historical source releases.
 
-NovaScale caps each image and each screen's image storage at 8 MiB, dimensions
-at 4096 per axis, pending encoded image data at 8 MiB, image count at 128,
-and placement count at 512. A session-owned allocator caps all Ghostty memory
-(including decompression and PNG work buffers) at 64 MiB; allocation failure
-rejects the operation rather than allowing a decompression bomb to grow without
-bound. Snapshot RGBA exports are at most 12 MiB (RGB expands to RGBA).
+`simd=true` enables Highway/simdutf on both Android ABIs. CPU targets remain
+baseline, with upstream runtime feature detection. Rust links the adapter,
+`ghostty-vt-static`, simdutf and Highway archives explicitly, and tracks all four
+archives so rebuilt native code cannot leave a stale Rust shared library.
 
-The existing grapheme table is followed by an `NGFX` v1 trailer when mode bit
-14 is set: magic/version, 64-bit asset revision, asset count, placement count,
-bounded RGBA assets, and 48-byte placement records in cell coordinates. JNI's
-`nativeSnapshotWithImages` accepts the last decoded asset revision: unchanged
-frames omit pixel data. The Kotlin session decoder retains assets by revision,
-validates all lengths and source/destination rectangles, and requests a complete
-set again after a failed decode. The old snapshot JNI method still returns a
-complete frame. Image conversion to Android Bitmaps runs on a cancellable
-worker; Canvas draws only the current frame's placements and clears the surface
-every frame. Session close destroys Ghostty image storage; view disposal drops
-its bitmap cache. All images remain in process memory and are never logged or
-written to disk by the renderer.
+## State and rendering
 
-`kitty_snapshot.zig` is the NovaScale adapter for Ghostty's parsed APC commands,
-bounded execution and render placements. Its small response-encoding dispatch
-follows the pinned `stream_terminal.zig` implementation; no second Kitty parser
-or terminal emulator is present. Resize now carries actual cell pixel dimensions
-through Kotlin/Rust to Ghostty and SSH window-change messages.
+The public API owns terminal parsing, scrollback, colors, modes, replies and
+Kitty storage. One retained render state per terminal is captured while Rust
+holds the terminal mutex. Public global/per-row dirty flags avoid repeated cell
+extraction, and opaque row identities plus owned content generations preserve
+Kotlin row objects and GPU row commands across scrolling. Dirty flags are cleared
+only after an owned capture succeeds. No borrowed Ghostty pointer crosses JNI.
 
-The packed snapshot's previously reserved 32-bit word at byte 52 now contains
-mouse flags: bits 0–3 are X10/normal/button/any-event tracking; bits 4–7 are
-SGR/UTF-8/urxvt/SGR-pixel encoding. Zero preserves old no-mouse behavior and the
-56-byte header is unchanged. Mode state is read from Ghostty, not reparsed in
-Kotlin. The device runtime probe checks enable, disable, and terminal reset.
+[The frame v2 contract](../../native/nova-ghostty-zig/README.md) carries a complete
+row directory, only changed row payloads, cursor/colors/input modes, and an NGFX
+v1 image trailer. Missing baselines receive full frames; invalid packets clear
+both decoder caches and trigger one immediate full-frame retry. The legacy v1
+parser remains for synthetic fixtures and the non-Ghostty host test fallback;
+Android's production native path emits v2.
 
-Bit 8 of the same mode word carries bracketed-paste mode (DECSET 2004).
-Bits 9–13 carry the active screen's negotiated Kitty keyboard flags. This
-preserves the snapshot layout and follows Ghostty's keyboard push/pop, screen
-switch and reset state. Android's accessory and View input share an encoder;
-Shift+Tab uses CSI-u when requested and legacy back-tab otherwise. Keyboard
-mode reporting and graphics share the same upstream pin.
+Render holds preserve the last complete owned rows and image pixels. Hold start
+captures completed output even when JNI has not yet requested it. Release makes
+new output available. A monotonic one-second deadline in the SSH and Herdr event
+loops releases forgotten holds without requiring new network bytes or polling
+an idle terminal. Resize, viewport scrolling and theme changes end a hold.
 
-The adapter also handles Ghostty's parsed OSC 52 clipboard-write action, retaining
-at most one pending base64 payload (1 MiB decoded). Rust decodes valid UTF-8 and
-emits a low-frequency `clipboard_write` event. Clipboard queries are ignored;
-no device clipboard content is returned to the remote host. The focused Android
-terminal consumes writes; hidden/background sessions cannot set the clipboard.
+The engine's default TinyIo and disabled external effects are retained. SSH has
+up to 10,000 scrollback lines, subject to its allocator budget; Herdr explicitly
+has zero local scrollback. Clipboard reads, desktop notifications, host-requested
+window resizing and Glyph Protocol are disabled. There is no terminal payload
+logging. The public clipboard callback receives decoded text; Rust validates
+UTF-8, and only a focused Android terminal may apply its bounded write event.
+PNG hook installation is synchronized across concurrent session creation.
+
+## Kitty graphics policy
+
+Direct RGB/RGBA/PNG, zlib/chunking, crop/scale/z ordering, Unicode placeholders,
+relative placements, deletion, alternate screens and scrollback use upstream
+semantics and the public image iterator. Wuffs remains checksum-pinned. File,
+temporary-file and shared-memory transfer remain disabled.
+
+The owner approved upstream command behavior with resource caps on 2026-11-11.
+The public ABI has no parsed-command policy hook, so the retired adapter's exact
+command rejection rules are not preserved. In particular, oversized source
+crops can be safely clipped by Ghostty and explicit animation-frame selection
+can change the displayed pixels. Automatic animation playback is not scheduled
+by the Android renderer. There is no private Ghostty patch or second Kitty parser.
+
+Limits are enforced at these boundaries:
+
+- Each terminal's VT allocator: 64 MiB, including render state, decompression
+  and PNG scratch storage; separate auxiliary buffers: 64 MiB in total.
+- Upstream Kitty storage: 8 MiB per screen; pending encoded APC: 8 MiB.
+- PNG decode and each exported RGBA asset: at most 4096 pixels per axis and
+  8 MiB decoded. Raw protocol commands follow upstream admission rules, while
+  unsupported export dimensions are omitted from rendering.
+- Per exported frame: at most 128 image assets, 512 placements and 12 MiB of
+  RGBA pixels. These count limits apply to visible export, not upstream storage
+  admission. Resolved source/destination rectangles are validated before export.
+- Frame packet: 32 MiB; pending PTY replies and clipboard text: 1 MiB each.
+
+Image generations control asset reuse. Android converts new assets on a
+cancellable worker and draws current placements with Canvas. Holds also freeze
+owned image pixels. Session close frees VT storage; view disposal frees bitmap
+and row caches. Rendering does not write images or terminal data to disk.
+
+## Transitive source and license records
+
+`upstream-dependencies.json` is the release's full dependency inventory. The
+packages used by this adapter are:
+
+| Package | Pin | Use / retained notice |
+| --- | --- | --- |
+| Highway | `66486a10623fa0d72fe91260f96c892e41aceb06` | SIMD helpers and CPU dispatch, `../highway/` |
+| simdutf | `9.0.0`, vendored in the pinned Ghostty source | Base64 acceleration, `../simdutf/` |
+| Wuffs | `7411f488fe2e2c205c3d3b3d28638b7356522930` | PNG decoder, `../wuffs/` |
+| uucode | `1fb73433bba5d93366c57f23ff2e9d7939746500` | Unicode data/code, `../uucode/` |
+| translate_c | `02ff0c523fb92a38939b04d0145c4a9602a74d56` | C binding generation and runtime helpers, `../zig-translate-c/` |
+| aro | `d0c8c4d9c55daa7ef6e40cf0f630a5b5e900989b` | Build-time C parser only, `build-tools/aro-LICENSE` and `build-tools/aro-LICENSE-UNICODE` |
+
+The upstream source and dependency hashes stay in the immutable package graph;
+no dependency source is copied or patched. Zig 0.17's extracted `zig-pkg/` is a
+build cache, excluded from Git and Gradle source inputs. The toolchain download
+is checksum-verified by `scripts/ensure-zig.sh`.

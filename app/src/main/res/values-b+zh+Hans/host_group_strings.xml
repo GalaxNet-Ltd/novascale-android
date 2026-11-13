@@ -1,0 +1,42 @@
+<resources>
+    <string name="host_groups">分组</string>
+    <string name="host_groups_manage">管理分组</string>
+    <string name="host_groups_filter">筛选主机：%1$s</string>
+    <string name="host_groups_all">所有主机</string>
+    <string name="host_groups_tailnet">Tailnet 主机</string>
+    <string name="host_groups_traditional">传统 SSH 主机</string>
+    <string name="host_groups_ungrouped">未分组</string>
+    <string name="host_groups_empty">还没有分组。创建分组来整理主机。</string>
+    <string name="host_groups_no_matching_hosts">没有符合筛选条件的主机。</string>
+    <string name="host_groups_create">创建分组</string>
+    <string name="host_groups_rename">重命名分组</string>
+    <string name="host_groups_name">分组名称</string>
+    <string name="host_groups_delete_title">删除分组？</string>
+    <string name="host_groups_delete_description">删除“%1$s”？主机及其连接会保留。</string>
+    <string name="host_groups_assign_title">%1$s 的分组</string>
+    <string name="host_groups_assign_empty">请先在主机页面创建分组。</string>
+    <string name="host_groups_unavailable">此主机缺少稳定的 tailnet 身份，无法加入分组。</string>
+    <string name="host_groups_save_error">无法保存分组，请重试。</string>
+    <string name="host_groups_storage_error">无法加载分组，请重试。</string>
+    <string name="host_groups_edit_named">重命名 %1$s</string>
+    <string name="host_groups_delete_named">删除 %1$s</string>
+    <string name="host_pinned">已固定主机</string>
+    <string name="host_pinned_indicator">已固定</string>
+    <string name="host_pin">固定主机</string>
+    <string name="host_unpin">取消固定主机</string>
+    <string name="host_pin_unavailable">此主机缺少稳定的 tailnet 身份，无法固定。</string>
+    <string name="host_pin_storage_error">无法加载已固定主机，请重试。</string>
+    <string name="host_pin_save_error">无法更新固定的主机，请重试。</string>
+    <string name="host_filter_title">筛选与分组</string>
+    <string name="host_filter_open">筛选与分组</string>
+    <string name="host_filter_section">筛选</string>
+    <string name="host_filter_show_group">仅显示此分组</string>
+    <string name="host_filter_group_options">%1$s 的选项</string>
+    <string name="host_filter_expand_group">展开 %1$s</string>
+    <string name="host_filter_collapse_group">收起 %1$s</string>
+    <string name="host_filter_no_members">此分组中目前没有可用主机。</string>
+    <string name="host_filter_remove_member">将 %1$s 移出 %2$s</string>
+    <string name="host_filter_new_group">新建分组</string>
+    <string name="host_filter_traditional_subtitle">传统 SSH 主机</string>
+    <plurals name="host_filter_member_count"><item quantity="other">%d 台主机</item></plurals>
+</resources>

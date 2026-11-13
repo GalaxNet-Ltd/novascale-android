@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="browser_recent">Recent sites</string>
+    <string name="browser_favorites">Favorites</string>
+    <string name="browser_history">History</string>
+    <string name="browser_library_empty">Sites you visit appear here.</string>
+    <string name="browser_favorites_empty">Save a page from its menu to find it here.</string>
+    <string name="browser_add_favorite">Add favorite</string>
+    <string name="browser_edit_favorite">Edit favorite</string>
+    <string name="browser_remove_favorite">Remove favorite</string>
+    <string name="browser_site_name">Name</string>
+    <string name="browser_search_library">Search sites</string>
+    <string name="browser_clear_history">Clear history</string>
+    <string name="browser_clear_history_description">Clear this tailnet’s browsing history? Favorites will stay saved.</string>
+    <string name="browser_remove_history">Remove from history</string>
+    <string name="browser_library_error">Saved sites could not be updated. Please try again.</string>
+    <string name="browser_find">Find in page</string>
+    <string name="browser_find_query">Find text</string>
+    <string name="browser_find_previous">Previous match</string>
+    <string name="browser_find_next">Next match</string>
+    <string name="browser_find_count">%1$d of %2$d</string>
+    <string name="browser_find_none">No matches</string>
+    <string name="browser_settings">Browser settings</string>
+    <string name="browser_local_data">Favorites and history are stored on this device for the selected tailnet.</string>
+    <string name="browser_resume">Resume page</string>
+    <string name="browser_resume_description">The browser connection ended. Open this page again when connected.</string>
+    <string name="browser_protocol">Protocol</string>
+    <string name="browser_site_options">Site options: %1$s</string>
+    <string name="browser_open_saved">Open site</string>
+    <string name="browser_no_results">No matching sites</string>
+</resources>

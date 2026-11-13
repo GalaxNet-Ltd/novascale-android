@@ -2,7 +2,7 @@
  * NovaScale for Android
  * Copyright (C) 2026 NovaScale contributors
  *
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: Apache-2.0
  */
 package cc.galaxnet.novascale.core
 
@@ -16,6 +16,7 @@ data class TerminalRenderSnapshot(
     val defaultBackgroundArgb: Int = 0xFF0D1117.toInt(),
     val mouseFlags: Int = 0,
     val images: List<TerminalImagePlacement> = emptyList(),
+    val cursorColorArgb: Int? = null,
 ) {
     /** Mode bits from Ghostty's active screen; no escape-sequence parsing in the UI. */
     val bracketedPasteEnabled: Boolean get() = mouseFlags and 256 != 0
@@ -62,11 +63,15 @@ data class TerminalRenderSnapshot(
     }
 }
 
+data class TerminalRowIdentity(val first: Long, val second: Long)
+
 data class TerminalRowSnapshot(
     val rowIndex: Int,
     val runs: List<TerminalGlyphRun>,
     /** Compact text-to-cell map. Wide-character spacer cells have a zero-length text range. */
     val cellText: TerminalCellTextLayout? = null,
+    val identity: TerminalRowIdentity? = null,
+    val contentRevision: Long = 0,
 ) {
     internal fun textAt(column: Int, columns: Int): String {
         cellText?.takeIf { it.columnCount == columns }?.let { return it.textAt(column) }
@@ -121,6 +126,12 @@ class TerminalCellTextLayout private constructor(
         return text.substring(start, cellEndOffsets[toColumn])
     }
 
+    // Snapshots are immutable values. Equal cell layouts can reuse an existing row display list.
+    override fun equals(other: Any?): Boolean = this === other || other is TerminalCellTextLayout &&
+        text == other.text && cellEndOffsets.contentEquals(other.cellEndOffsets)
+
+    override fun hashCode(): Int = 31 * text.hashCode() + cellEndOffsets.contentHashCode()
+
     companion object {
         fun fromCells(cells: List<String>): TerminalCellTextLayout {
             require(cells.isNotEmpty())
@@ -162,6 +173,9 @@ data class TerminalGlyphRun(
     val italic: Boolean = false,
     val underline: Boolean = false,
     val faint: Boolean = false,
+    val strikethrough: Boolean = false,
+    val overline: Boolean = false,
+    val underlineColorArgb: Int? = null,
 ) {
     init {
         require(startColumn >= 0)
@@ -196,6 +210,9 @@ object GhosttySnapshotParser {
     private const val FLAG_SPACER = 1 shl 7
 
     fun parse(bytes: ByteArray, decoder: TerminalSnapshotDecoder = TerminalSnapshotDecoder()): TerminalRenderSnapshot {
+        if (bytes.size >= 4 && java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).int == TerminalFrameParser.MAGIC) {
+            return TerminalFrameParser.parse(bytes, decoder)
+        }
         require(bytes.size >= HEADER_BYTES) { "Terminal snapshot header is truncated" }
         val buffer = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
         val columns = buffer.getInt(0)
@@ -217,7 +234,11 @@ object GhosttySnapshotParser {
                 val runs = mutableListOf<TerminalGlyphRun>()
                 val rowText = StringBuilder(columns)
                 val cellEndOffsets = IntArray(columns)
-                var current: MutableRun? = null
+                var runStartColumn = -1
+                var runStartText = 0
+                var runForeground = 0
+                var runBackground = 0
+                var runFlags = 0
                 for (column in 0 until columns) {
                     val index = row * columns + column
                     val offset = HEADER_BYTES + index * CELL_BYTES
@@ -238,35 +259,32 @@ object GhosttySnapshotParser {
                         foreground = background
                         background = swap
                     }
-                    val style = CellStyle(
-                        foreground = foreground,
-                        background = background,
-                        bold = flags and FLAG_BOLD != 0,
-                        italic = flags and FLAG_ITALIC != 0,
-                        underline = flags and FLAG_UNDERLINE != 0,
-                        faint = flags and FLAG_FAINT != 0,
-                    )
-                    if (current?.style != style) {
-                        current?.toSnapshot()?.let(runs::add)
-                        current = MutableRun(column, style)
+                    val styleFlags = flags and (FLAG_BOLD or FLAG_ITALIC or FLAG_UNDERLINE or FLAG_FAINT)
+                    if (runStartColumn < 0 || runForeground != foreground || runBackground != background || runFlags != styleFlags) {
+                        if (runStartColumn >= 0) {
+                            appendRun(runs, rowText, runStartText, runStartColumn, column, runForeground, runBackground, runFlags)
+                        }
+                        runStartColumn = column
+                        runStartText = rowText.length
+                        runForeground = foreground
+                        runBackground = background
+                        runFlags = styleFlags
                     }
-                    val run = checkNotNull(current)
-                    run.columnCount += 1
                     if (flags and FLAG_SPACER == 0) {
                         val resolvedCodepoint = codepoint.takeIf(::isScalarValue) ?: 0xfffd
                         rowText.appendCodePoint(resolvedCodepoint)
-                        run.text.appendCodePoint(resolvedCodepoint)
                         if (flags and FLAG_GRAPHEME != 0) {
                             extras[index]?.forEach { extra ->
                                 val resolvedExtra = extra.takeIf(::isScalarValue) ?: 0xfffd
                                 rowText.appendCodePoint(resolvedExtra)
-                                run.text.appendCodePoint(resolvedExtra)
                             }
                         }
                     }
                     cellEndOffsets[column] = rowText.length
                 }
-                current?.toSnapshot()?.let(runs::add)
+                if (runStartColumn >= 0) {
+                    appendRun(runs, rowText, runStartText, runStartColumn, columns, runForeground, runBackground, runFlags)
+                }
                 add(
                     TerminalRowSnapshot(
                         rowIndex = row,
@@ -335,32 +353,20 @@ object GhosttySnapshotParser {
     private fun isScalarValue(value: Int): Boolean =
         value in 0..0x10ffff && value !in 0xd800..0xdfff
 
-    private data class CellStyle(
-        val foreground: Int,
-        val background: Int,
-        val bold: Boolean,
-        val italic: Boolean,
-        val underline: Boolean,
-        val faint: Boolean,
-    )
-
-    private class MutableRun(
-        private val startColumn: Int,
-        val style: CellStyle,
+    private fun appendRun(
+        runs: MutableList<TerminalGlyphRun>, text: StringBuilder, textStart: Int,
+        startColumn: Int, endColumn: Int, foreground: Int, background: Int, flags: Int,
     ) {
-        var columnCount: Int = 0
-        val text = StringBuilder()
-
-        fun toSnapshot(): TerminalGlyphRun = TerminalGlyphRun(
+        runs.add(TerminalGlyphRun(
             startColumn = startColumn,
-            columnCount = columnCount,
-            text = text.takeIf { it.isNotEmpty() }?.toString() ?: " ",
-            foregroundArgb = style.foreground,
-            backgroundArgb = style.background,
-            bold = style.bold,
-            italic = style.italic,
-            underline = style.underline,
-            faint = style.faint,
-        )
+            columnCount = endColumn - startColumn,
+            text = if (text.length == textStart) " " else text.substring(textStart),
+            foregroundArgb = foreground,
+            backgroundArgb = background,
+            bold = flags and FLAG_BOLD != 0,
+            italic = flags and FLAG_ITALIC != 0,
+            underline = flags and FLAG_UNDERLINE != 0,
+            faint = flags and FLAG_FAINT != 0,
+        ))
     }
 }
