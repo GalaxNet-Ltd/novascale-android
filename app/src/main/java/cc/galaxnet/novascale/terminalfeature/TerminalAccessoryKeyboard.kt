@@ -123,7 +123,7 @@ internal fun TerminalAccessoryKeyboard(
         BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp)) {
             val compact = maxWidth < 600.dp
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                ScrollableKeys(colors, Modifier.fillMaxWidth()) {
+                ScrollableKeys(colors, Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                     IconKey(colors, Icons.AutoMirrored.Outlined.OpenInNew,
                         stringResource(R.string.cd_detach_terminal), colors.accent, onClick = onDetach)
                     IconKey(colors, Icons.Outlined.Cancel,
@@ -188,12 +188,17 @@ internal fun TerminalAccessoryKeyboard(
 }
 
 @Composable
-private fun ScrollableKeys(colors: TerminalChromeColors, modifier: Modifier, content: @Composable RowScope.() -> Unit) {
+private fun ScrollableKeys(
+    colors: TerminalChromeColors,
+    modifier: Modifier,
+    arrangement: Arrangement.Horizontal = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+    content: @Composable RowScope.() -> Unit,
+) {
     val scroll = rememberScrollState()
     Box(modifier) {
         Row(Modifier.fillMaxWidth().padding(end = if (scroll.canScrollForward) 10.dp else 0.dp)
             .horizontalScroll(scroll),
-            horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = arrangement,
             verticalAlignment = Alignment.CenterVertically, content = content)
         if (scroll.canScrollForward) {
             Text("›", color = colors.secondary, modifier = Modifier.align(Alignment.CenterEnd))

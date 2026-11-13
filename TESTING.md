@@ -117,11 +117,11 @@ switches, rotate/recreate activities, force-stop and reopen, and test background
 and network transitions across the supported device matrix. An unauthenticated
 local-node fixture cannot prove remote account restoration or live routing.
 
-## Herdr feasibility checks
+## Herdr protocol and release checks
 
-Herdr is under development. Tailnet and traditional host detail screens expose
-an owner-test Herdr action in debug builds only; release builds do not expose it.
-These checks exercise a prototype; they do not certify the feature for release. The incoming
+Herdr actions, destinations and onboarding are shared by debug and release
+builds. Only the diagnostic usage panel and Pro overrides are debug-only.
+These focused checks do not certify the whole device/release matrix. The incoming
 protocol decoder does not yet enforce a proven aggregate memory budget across
 decoding, retained surfaces, rendering and concurrent sessions.
 
@@ -340,10 +340,16 @@ without silently retrying through the other route.
   reopening the app. Delete a disposable host and verify its saved credentials
   are removed while other hosts remain. No password or private key should appear
   in logs or backup/device transfer.
-- On the host detail screen, exercise Terminal and Files. In a **debug build**,
-  **Herdr Remote** is an owner-test action: use an explicitly named disposable
-  remote session, not a working/default session. The action is absent from
-  release builds and the Herdr feasibility/release gates above still apply.
+- On the host detail screen, exercise Terminal, Files and **Herdr Remote** in
+  both debug and release builds. Use an explicitly named disposable remote
+  session. Confirm attachment, keyboard input, native controls and Sessions
+  reattachment with the release APK; the production action must not depend on
+  `BuildConfig.DEBUG`. A tailnet host without saved SSH settings must continue
+  to Herdr after saving those settings.
+- In the release APK, verify Settings and the Pro sheet omit the detailed Herdr
+  accounting panel and debug Pro overrides. Normal free-allowance messaging and
+  durable session accounting remain enabled. The aggregate memory/performance
+  and device-matrix checks described above remain separate release validation.
 
 The `traditional-host` instrumentation suite verifies disposable host CRUD,
 encrypted credential storage, route persistence, interrupted save/delete replay,
@@ -373,7 +379,7 @@ server for each live check before public distribution.
 9. On the first connection, compare the displayed SHA-256 host-key fingerprint with a trusted source before accepting it.
 10. Confirm a shell appears at a readable default size. Test typing, Enter, Backspace, Unicode, pinch sizing, rotation, and resize. Run `seq 1 200`; drag downward in the terminal to reveal older numbered lines, then type one character and confirm the viewport automatically returns to line 200 and the active prompt. Scroll again and drag upward to return manually. Repeat with a mouse or trackpad wheel where available. Scrolling must move Ghostty's retained viewport without printing arrow-key escape input or moving terminal content behind the accessory row.
 11. Open **Settings → Terminal appearance**. Exercise all five built-in palettes, all five font choices, sizes from 8–32 sp, and Application/Block/Beam/Underline cursor choices; the preview must update immediately. Application must honor cursor-shape requests from terminal programs, while each fixed choice must retain its selected rendered shape without making a natively hidden cursor visible. Import a normal `.itermcolors` preset through the document picker (`testdata/terminal/NovaScale-Test.itermcolors` is a non-sensitive fixture) and confirm it becomes selected; malformed, entity-bearing, XInclude-bearing, and larger-than-512-KiB files must be rejected. Restart NovaScale and confirm the selected theme, font, size, and cursor shape persist. Reopen the shell and confirm palette changes reach ANSI output, the title/status area, multi-tab strip, accessory keyboard, and system bars rather than only the preview; light palettes must use dark system icons, dark palettes must use light icons, and pinch sizing must update the Settings value.
-12. Exercise the two accessory rows: **Detach** (arrow leaving a square), **Close**, **Esc**, **Ctl**, **Alt**, **Tab**, navigation, and **Paste**; fixed **Shift** and **Insert newline**, scrolling symbols/F1–F12, and fixed **Hide keyboard** below. On a compact screen, drag the compact navigation icon in each direction and hold to repeat; returning to its center, release, cancellation, backgrounding, and switching tabs must stop repeat. Tap the navigation icon for discrete arrow buttons. At widths of at least 600 dp, separate arrows replace the pad. Confirm Ctrl/Alt/Shift are visibly selected, apply once to an accessory key or IME/hardware input, then clear. Test Shift+Tab and Shift+arrows in Codex and other remote TUIs, including negotiated Kitty keyboard mode. Insert newline is enabled only when the remote program enables bracketed paste; it must insert a line without submitting the prompt. Symbols scroll independently of Shift, newline, and Hide keyboard.
+12. Exercise the two accessory rows: **Detach** (arrow leaving a square), **Close**, **Esc**, **Ctl**, **Alt**, **Tab**, navigation, and **Paste**; fixed **Shift** and **Insert newline**, scrolling symbols/F1–F12, and fixed **Hide keyboard** below. On a compact screen, drag the compact navigation icon in each direction and hold to repeat; returning to its center, release, cancellation, backgrounding, and switching tabs must stop repeat. Tap the navigation icon for discrete arrow buttons. At widths of at least 600 dp, separate arrows replace the pad. Confirm Ctrl/Alt/Shift are visibly selected, apply once to an accessory key or IME/hardware input, then clear. Test Shift+Tab and Shift+arrows in Codex and other remote TUIs, including negotiated Kitty keyboard mode. Insert newline is enabled only when the remote program enables bracketed paste; it must insert a line without submitting the prompt. The first row must spread from Detach at the leading edge to Paste at the trailing edge instead of leaving large centered margins; retain horizontal scrolling when the controls do not fit. Symbols scroll independently of Shift, newline, and Hide keyboard.
 13. Review Home, Host Detail, Settings, Terminal connection/loading, Files, and file Preview in light and dark mode. Ordinary icons must use transparent or neutral surfaces instead of a same-hue translucent background; selected bottom navigation must use Primary with no selection pill; filled icon controls must use a contrasting foreground. Host platform tiles remain the only colored icon tiles in ordinary list rows.
 14. Add, switch, and close terminal tabs with **+** and **×**. Android terminal tabs are free in the initial release; the MVP caps a host group at six and uses an independent SSH connection for each tab.
 15. Change the server host key in a disposable environment and confirm NovaScale blocks it and identifies the saved fingerprint as changed.

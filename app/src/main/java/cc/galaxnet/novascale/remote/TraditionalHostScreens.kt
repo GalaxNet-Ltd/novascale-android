@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.CircularProgressIndicator
 import cc.galaxnet.novascale.ui.NovaGroupedCard
 import kotlinx.coroutines.CancellationException
-import cc.galaxnet.novascale.BuildConfig
 import cc.galaxnet.novascale.HostActionGrid
 import cc.galaxnet.novascale.HostTile
 import cc.galaxnet.novascale.R
@@ -165,9 +164,7 @@ internal fun TraditionalHostDetailScreen(
             NovaSectionLabel(stringResource(R.string.section_actions))
             HostActionGrid(listOf(
                 HostTile(R.string.feature_terminal, "SSH", NovaIcons.Terminal, NovaTheme.colors.menuPrimary) { onTerminal(selected) },
-            ) + (if (BuildConfig.DEBUG) listOf(
                 HostTile(R.string.herdr_title, stringResource(R.string.herdr_action_description), Icons.Outlined.Widgets, NovaTheme.colors.menuGreen) { onHerdr(selected) },
-            ) else emptyList()) + listOf(
                 HostTile(R.string.feature_files, "SFTP", NovaIcons.Files, NovaTheme.colors.menuFile) { onFiles(selected) },
             ))
         }

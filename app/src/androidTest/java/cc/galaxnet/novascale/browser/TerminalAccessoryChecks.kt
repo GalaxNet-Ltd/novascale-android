@@ -137,6 +137,12 @@ internal object TerminalAccessoryChecks {
         val primaryBounds = primary.map(::bounds)
         val end = bounds(activity.getString(R.string.cd_hide_keyboard)).right
         check(primaryBounds.all { it.left >= 0 && it.right <= end + 2 }) { "Primary keys overflow the compact viewport" }
+        val density = activity.resources.displayMetrics.density
+        val detach = bounds(activity.getString(R.string.cd_detach_terminal))
+        val paste = bounds(activity.getString(R.string.cd_paste))
+        check(detach.exactCenterX() <= 24 * density && end - paste.exactCenterX() <= 24 * density) {
+            "Primary row leaves unused space at its outer edges"
+        }
         // Accessibility may expand a 36 dp key to a 48 dp hit target. Compare row centers.
         val rowSpacing = bounds("Shift").exactCenterY() - bounds("Esc").exactCenterY()
         check(rowSpacing <= 42 * activity.resources.displayMetrics.density) { "Accessory rows are too far apart: $rowSpacing" }

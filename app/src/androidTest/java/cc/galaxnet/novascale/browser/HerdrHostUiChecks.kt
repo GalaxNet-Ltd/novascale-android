@@ -21,7 +21,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 
-/** Exercises debug Herdr host actions using synthetic host data only. */
+/** Exercises the shared Herdr host actions using synthetic host data only. */
 internal object HerdrHostUiChecks {
     fun run(test: Instrumentation, activity: ProxyTestActivity) {
         fun find(label: String): AccessibilityNodeInfo? {

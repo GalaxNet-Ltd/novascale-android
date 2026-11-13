@@ -538,7 +538,6 @@ internal fun NovaScaleApp(
     }
 
     fun openHerdr(peer: TailnetPeer) {
-        if (!BuildConfig.DEBUG) return
         navigation.open(tailnetHerdrDestination(peer, currentTailnetProfile, sshProfiles.contains(peer.hostId())))
     }
 
@@ -802,7 +801,7 @@ internal fun NovaScaleApp(
                     peer = current.peer,
                     onTerminal = { openTerminal(current.peer) },
                     onFiles = { openFiles(current.peer) },
-                    onHerdr = if (BuildConfig.DEBUG) ({ openHerdr(current.peer) }) else null,
+                    onHerdr = { openHerdr(current.peer) },
                     onPing = { navigation.open(AppDestination.Ping(current.peer)) },
                     onWeb = { webAccessPeer = current.peer
                     },
@@ -851,7 +850,7 @@ internal fun NovaScaleApp(
                     },
                     onFiles = { config -> navigation.open(AppDestination.TraditionalFiles(current.host, current.host.asPeer(config))) },
                     onHerdr = { config ->
-                        if (BuildConfig.DEBUG) navigation.open(AppDestination.TraditionalHerdr(current.host, current.host.asPeer(config)))
+                        navigation.open(AppDestination.TraditionalHerdr(current.host, current.host.asPeer(config)))
                     },
                 )
                 is AppDestination.TraditionalTerminal -> TraditionalConfigContent(current.host, traditionalHosts) { config -> TerminalScreen(
@@ -877,7 +876,7 @@ internal fun NovaScaleApp(
                     onContentFullScreen = { sftpContentFullScreen = it },
                     onEditSshSettings = { navigation.open(AppDestination.TraditionalHostEdit(current.host)) },
                 ) }
-                is AppDestination.TraditionalHerdr -> if (BuildConfig.DEBUG) TraditionalConfigContent(current.host, traditionalHosts) { config ->
+                is AppDestination.TraditionalHerdr -> TraditionalConfigContent(current.host, traditionalHosts) { config ->
                     val controller = remember(current.host.id) {
                         herdrControllers.getOrPut(current.host.id) { HerdrAttachment((context.applicationContext as NovaScaleApplication).createHerdrController(current.host.id), current, current.host.name) }.controller
                     }
@@ -894,7 +893,7 @@ internal fun NovaScaleApp(
                         },
                     )
                 }
-                is AppDestination.Herdr -> if (BuildConfig.DEBUG) {
+                is AppDestination.Herdr -> {
                     val controller = remember(current.controllerKey) {
                         herdrControllers.getOrPut(current.controllerKey) { HerdrAttachment((context.applicationContext as NovaScaleApplication).createHerdrController(current.controllerKey), current, current.peer.displayName) }.controller
                     }
@@ -968,9 +967,7 @@ internal fun NovaScaleApp(
                                 returnToHost = current.terminalReturnToHost,
                             )
                             PendingHostAction.FILES -> AppDestination.Files(current.peer)
-                            PendingHostAction.HERDR -> if (BuildConfig.DEBUG) {
-                                tailnetHerdrDestination(current.peer, currentTailnetProfile, hasSavedProfile = true)
-                            } else AppDestination.Host(current.peer)
+                            PendingHostAction.HERDR -> tailnetHerdrDestination(current.peer, currentTailnetProfile, hasSavedProfile = true)
                             PendingHostAction.NONE -> AppDestination.Host(current.peer)
                         })
                     },
@@ -1414,7 +1411,7 @@ internal fun HostDetailScreen(
         NovaSectionLabel(stringResource(R.string.section_actions))
         HostActionGrid(listOf(
             HostTile(R.string.feature_terminal, "SSH", NovaIcons.Terminal, NovaTheme.colors.menuPrimary, onTerminal),
-        ) + (if (BuildConfig.DEBUG && onHerdr != null) listOf(
+        ) + (if (onHerdr != null) listOf(
             HostTile(R.string.herdr_title, stringResource(R.string.herdr_action_description), Icons.Outlined.Widgets, NovaTheme.colors.menuGreen, onHerdr),
         ) else emptyList()) + listOf(
             HostTile(R.string.host_web_access, "HTTP / HTTPS", androidx.compose.material.icons.Icons.Outlined.Language, NovaTheme.colors.menuGreen, onWeb),

@@ -37,8 +37,7 @@ internal fun OnboardingScreen(busy: Boolean, error: Boolean, onComplete: () -> U
     val pages = buildList {
         add(OnboardingPage(R.string.onboard_network_title, R.string.onboard_network_body, NovaIcons.Hosts))
         add(OnboardingPage(R.string.onboard_tools_title, R.string.onboard_tools_body, NovaIcons.Terminal))
-        // Match the current Herdr host-action availability until its release gate is cleared.
-        if (BuildConfig.DEBUG) add(OnboardingPage(R.string.onboard_herdr_title, R.string.onboard_herdr_body, Icons.Outlined.DashboardCustomize))
+        add(OnboardingPage(R.string.onboard_herdr_title, R.string.onboard_herdr_body, Icons.Outlined.DashboardCustomize))
         add(OnboardingPage(R.string.onboard_browser_title, R.string.onboard_browser_body, Icons.Outlined.Language))
     }
     BackHandler(page > 0 && !busy) { page-- }
