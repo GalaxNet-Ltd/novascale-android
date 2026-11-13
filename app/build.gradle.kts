@@ -26,6 +26,12 @@ val sourceCodeUrl = providers.gradleProperty("NOVASCALE_SOURCE_URL")
 val releaseTrack = providers.environmentVariable("NOVASCALE_RELEASE_TRACK").orElse("").get()
 val deferSourcePublication = providers.environmentVariable("NOVASCALE_DEFER_SOURCE_PUBLICATION")
     .orElse("false").map(String::toBoolean).get()
+// Explicit internal-test opt-in. Production builds cannot emit billing diagnostics.
+val billingDiagnostics = providers.environmentVariable("NOVASCALE_BILLING_DIAGNOSTICS")
+    .orElse("false").map(String::toBoolean).get()
+check(!billingDiagnostics || releaseTrack == "internal") {
+    "Billing diagnostics are restricted to the internal test track."
+}
 // Derive displayed upstream version from the actual module pin, never a UI literal.
 val tailscaleVersion = Regex("""(?m)^\s*tailscale\.com\s+(v\S+)""")
     .find(providers.fileContents(rootProject.layout.projectDirectory.file("native/nova-tailnet-go/go.mod")).asText.get())
@@ -135,6 +141,7 @@ android {
         buildConfigField("String", "TERMS_OF_SERVICE_URL", termsOfServiceUrl.asBuildConfigString())
         buildConfigField("String", "SOURCE_CODE_URL", sourceCodeUrl.asBuildConfigString())
         buildConfigField("String", "PLAY_BILLING_PUBLIC_KEY", billingPublicKey.asBuildConfigString())
+        buildConfigField("boolean", "BILLING_DIAGNOSTICS", billingDiagnostics.toString())
         ndk {
             abiFilters += setOf("arm64-v8a", "x86_64")
         }

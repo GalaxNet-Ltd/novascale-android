@@ -3,7 +3,10 @@ package cc.galaxnet.novascale.billing
 
 import android.app.Activity
 import android.content.Context
+import android.util.Log
+import cc.galaxnet.novascale.BuildConfig
 import com.android.billingclient.api.*
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -82,11 +85,26 @@ internal class PlayBillingStore(context: Context) : BillingStore {
             suspendCancellableCoroutine { continuation ->
                 client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()) { result, owned ->
                     if (!continuation.isActive) return@queryPurchasesAsync
+                    if (BuildConfig.BILLING_DIAGNOSTICS) logOwnership(result, owned)
                     if (result.responseCode == BillingClient.BillingResponseCode.OK) continuation.resume(owned.mapNotNull(::purchase))
                     else continuation.resumeWithException(BillingFailure(problem(result)))
                 }
             }
         }
+    }
+
+    /** Internal-test only: no tokens, receipt bodies, signatures or raw order/account IDs. */
+    private fun logOwnership(result: BillingResult, owned: List<Purchase>) {
+        runCatching {
+            Log.i("NovaBilling", "ownership response=${result.responseCode} count=${owned.size}")
+            for (value in owned.filter { PRO_PRODUCT_ID in it.products }) {
+                val order = value.orderId?.takeIf { it.isNotBlank() }?.let {
+                    MessageDigest.getInstance("SHA-256").digest(it.toByteArray(Charsets.UTF_8))
+                        .take(6).joinToString("") { byte -> "%02x".format(byte.toInt() and 255) }
+                } ?: "missing"
+                Log.i("NovaBilling", "pro orderHash=$order state=${value.purchaseState} acknowledged=${value.isAcknowledged}")
+            }
+        } // Diagnostics must not affect entitlement reconciliation.
     }
 
     suspend fun launch(activity: Activity): LaunchResult = withContext(Dispatchers.Main.immediate) {

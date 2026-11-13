@@ -46,6 +46,13 @@ application and accompanies its reproducible source. Forks publishing a separate
 Play app must supply their own app's public key. Without a valid key, checkout stays unavailable; fixture tests and
 debug Free/Pro controls need no key or Google account.
 
+For internal billing investigations, setting `NOVASCALE_BILLING_DIAGNOSTICS=true`
+and `NOVASCALE_RELEASE_TRACK=internal` enables local `NovaBilling` logcat entries:
+ownership query status/count and Pro receipt state with a hashed order reference.
+Tokens, receipt bodies and raw order/account IDs are excluded. The flag defaults
+to false and is rejected for other release tracks; it does not change entitlement
+decisions or send diagnostics to a server.
+
 ## Build
 
 Requirements:
