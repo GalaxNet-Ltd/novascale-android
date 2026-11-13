@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="login_server_edit">编辑</string>
+    <string name="login_server_edit_title">更改登录服务器</string>
+    <string name="login_server_clear">清除服务器地址</string>
+    <string name="login_server_invalid">请输入有效的 HTTPS 服务器地址，不含凭据、查询参数或片段。</string>
     <string name="tailnets_title">Tailnet 网络</string>
     <string name="tailnets_add">添加网络</string>
     <string name="tailnets_name">名称</string>

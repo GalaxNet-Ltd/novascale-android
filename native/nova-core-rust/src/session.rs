@@ -829,13 +829,18 @@ async fn run_shell(
                 }
                 Command::Resize { columns, rows, cell_width, cell_height }
                     if (20..=500).contains(&columns) && (5..=300).contains(&rows) => {
+                        let (revision, replies) = {
+                            let mut terminal = terminal.lock().expect("terminal state poisoned");
+                            let revision = terminal.resize_with_metrics(columns, rows, cell_width.clamp(1, 512), cell_height.clamp(1, 512));
+                            (revision, terminal.drain_pty_writes())
+                        };
+                        // Keyboard/reattachment geometry must reach the renderer even
+                        // when the remote program is idle or slow to repaint its PTY.
+                        let mut event = CoreEvent::named("snapshot_changed");
+                        event.revision = Some(revision);
+                        emit(&events, event);
                         channel.window_change(columns, rows, columns * cell_width.clamp(1, 512), rows * cell_height.clamp(1, 512)).await
                             .map_err(|_| SessionError::Channel)?;
-                        let replies = {
-                            let mut terminal = terminal.lock().expect("terminal state poisoned");
-                            terminal.resize_with_metrics(columns, rows, cell_width.clamp(1, 512), cell_height.clamp(1, 512));
-                            terminal.drain_pty_writes()
-                        };
                         if !replies.is_empty() {
                             channel.data(&replies[..]).await.map_err(|_| SessionError::Channel)?;
                         }

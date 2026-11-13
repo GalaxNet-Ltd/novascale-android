@@ -4,8 +4,12 @@ package cc.galaxnet.novascale.browser
 import android.app.Instrumentation
 import android.os.ParcelFileDescriptor
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import cc.galaxnet.novascale.core.*
 import cc.galaxnet.novascale.remote.*
 import cc.galaxnet.novascale.terminalfeature.*
@@ -20,6 +24,8 @@ internal object SshRetryChecks {
     fun run(test: Instrumentation, activity: ProxyTestActivity, port: Int, fingerprint: String) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val dials = AtomicInteger()
+        val measuredRows = AtomicInteger()
+        val measuredColumns = AtomicInteger()
         val identity = TailnetIdentity("fixture", "fixture.invalid", emptyList())
         val backend = object : TailnetBackend {
             override val currentState = TailnetState.Running(identity, 1)
@@ -56,7 +62,16 @@ internal object SshRetryChecks {
         try {
             known.trust(wrong, fingerprint)
             test.runOnMainSync {
-                registry = TerminalSessionRegistry(runtimeFactory = { TerminalConnectionController(context, backend, scope) }, testing = Unit)
+                registry = TerminalSessionRegistry(runtimeFactory = {
+                    val real = TerminalConnectionController(context, backend, scope)
+                    object : TerminalRuntime by real {
+                        override fun resizeWithMetrics(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int) {
+                            measuredColumns.set(columns.coerceIn(20, 500))
+                            measuredRows.set(rows.coerceIn(5, 300))
+                            real.resizeWithMetrics(columns, rows, cellWidth, cellHeight)
+                        }
+                    }
+                }, testing = Unit)
                 group = registry!!.getOrCreate("retry-fixture", peer.stableNodeId, peer, wrong)
                 runtime = group.tabs.value.single().runtime
                 group.ensureConnected()
@@ -110,11 +125,38 @@ internal object SshRetryChecks {
             runBlocking { withTimeout(3_000) { runtime.state.first { it.snapshot?.accessibleText()?.contains("SYNC-PENDING") == true } } }
             check(runtime.state.value.connected) { "Render hold timeout disconnected SSH" }
 
+            test.runOnMainSync { runtime.send("fixture-prompt\r".toByteArray()) }
+            runBlocking { withTimeout(5_000) { runtime.state.first { it.snapshot?.accessibleText()?.contains("PROMPT-BOTTOM") == true } } }
+            Thread.sleep(300) // Drain output before resizing; the fixture will now stay silent.
+            fun awaitSize(columns: Int, rows: Int) = runBlocking {
+                try {
+                    withTimeout(3_000) { runtime.state.first { it.snapshot?.let { frame ->
+                        frame.columns == columns && frame.rowCount == rows && frame.accessibleText().contains("PROMPT-BOTTOM")
+                    } == true } }
+                } catch (timeout: TimeoutCancellationException) {
+                    val frame = runtime.state.value.snapshot
+                    error("Idle SSH resize did not publish $columns x $rows; renderer still has ${frame?.columns} x ${frame?.rowCount}")
+                }
+            }
+            // No input, theme update or new remote bytes may rescue a stale snapshot.
+            test.runOnMainSync { runtime.resizeWithMetrics(80, 12, 8, 16) }
+            awaitSize(80, 12)
+            test.runOnMainSync {
+                repeat(80) { runtime.resizeWithMetrics(70 + it % 5, 10 + it % 45, 8, 16) }
+                runtime.resizeWithMetrics(80, 24, 8, 16)
+            }
+            awaitSize(80, 24)
+            Thread.sleep(300)
+            check(runtime.state.value.snapshot?.rowCount == 24) { "An obsolete resize won over the final geometry" }
+
             val showing = mutableStateOf(true)
             val exits = AtomicInteger()
             test.runOnMainSync {
+                activity.enableEdgeToEdge()
+                activity.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
                 activity.setContent {
                     NovaScaleTheme(darkTheme = true) {
+                        Scaffold { padding -> Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                         if (showing.value) TerminalScreen(
                             terminalSessions = registry!!, sessionKey = "retry-fixture", hostId = peer.stableNodeId,
                             peer = peer, tailnetState = backend.currentState, initialConfig = corrected,
@@ -122,13 +164,104 @@ internal object SshRetryChecks {
                             onTerminalFontSize = {}, onExit = { exits.incrementAndGet(); showing.value = false },
                             onOpenNewWindow = {}, onEditSshSettings = {},
                         ) else Text("Shell exit fixture complete")
+                        } }
                     }
                 }
             }
             test.waitForIdleSync()
+            var stage = "initial attachment"
+            var geometryDiagnostic = ""
             fun awaitCondition(check: () -> Boolean) = runBlocking {
-                withTimeout(15_000) { while (!check()) delay(25) }
+                try {
+                    withTimeout(15_000) { while (!check()) delay(25) }
+                } catch (timeout: TimeoutCancellationException) {
+                    error("SSH UI timeout at $stage: $geometryDiagnostic")
+                }
             }
+            fun visibleTerminal(): cc.galaxnet.novascale.terminal.NovaTerminalView? {
+                var result: cc.galaxnet.novascale.terminal.NovaTerminalView? = null
+                fun visit(view: android.view.View) {
+                    if (view is cc.galaxnet.novascale.terminal.NovaTerminalView && view.isShown && view.height > 0) result = view
+                    else if (view is android.view.ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+                }
+                visit(activity.window.decorView)
+                return result
+            }
+            fun promptFitsWithKeyboard(): Boolean {
+                var fits = false
+                test.runOnMainSync {
+                    val view = visibleTerminal() ?: return@runOnMainSync
+                    val frame = runtime.state.value.snapshot ?: return@runOnMainSync
+                    val ime = androidx.core.view.ViewCompat.getRootWindowInsets(view)
+                        ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+                    geometryDiagnostic = "ime=$ime view=${view.width}x${view.height} measured=${measuredColumns.get()}x${measuredRows.get()} frame=${frame.columns}x${frame.rowCount} cursor=${frame.cursor?.row} prompt=${frame.accessibleText().contains("PROMPT-BOTTOM")}"
+                    fits = ime && frame.rowCount == measuredRows.get() && frame.columns == measuredColumns.get() &&
+                        frame.accessibleText().contains("PROMPT-BOTTOM") && frame.cursor?.let {
+                            it.row < measuredRows.get()
+                        } == true
+                }
+                return fits
+            }
+            fun requestSoftwareKeyboardForHardwareFixture() {
+                // The emulator exposes an alphabetic hardware keyboard. Production
+                // correctly leaves its IME closed; explicitly open it for this test.
+                val hardwareKeyboard = android.view.InputDevice.getDeviceIds().any { id ->
+                    android.view.InputDevice.getDevice(id)?.let {
+                        !it.isVirtual && it.keyboardType == android.view.InputDevice.KEYBOARD_TYPE_ALPHABETIC
+                    } == true
+                }
+                if (hardwareKeyboard) {
+                    awaitCondition {
+                        var visible = false
+                        test.runOnMainSync { visible = visibleTerminal() != null }
+                        visible
+                    }
+                    test.runOnMainSync { visibleTerminal()?.requestTerminalInput(showSoftwareKeyboard = true) }
+                }
+            }
+            fun awaitSettledPrompt() {
+                var stableSince = 0L
+                awaitCondition {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (!promptFitsWithKeyboard()) stableSince = 0L
+                    else if (stableSince == 0L) stableSince = now
+                    stableSince != 0L && now - stableSince >= 800
+                }
+            }
+            requestSoftwareKeyboardForHardwareFixture()
+            awaitSettledPrompt()
+            // Put the complete prompt at the bottom of the keyboard-sized PTY.
+            // From here through all five reattachments the host sends no more bytes.
+            test.runOnMainSync { runtime.send("fixture-prompt\r".toByteArray()) }
+            awaitCondition { runtime.state.value.snapshot?.rows?.lastOrNull()?.runs?.any {
+                it.text.contains("PROMPT-BOTTOM")
+            } == true }
+            repeat(5) { pass ->
+                stage = "detach ${pass + 1}"
+                test.runOnMainSync {
+                    visibleTerminal()?.let { view ->
+                        view.releaseTerminalInput()
+                        view.clearFocus()
+                        activity.getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                            .hideSoftInputFromWindow(view.windowToken, 0)
+                    }
+                    showing.value = false
+                }
+                awaitCondition { registry!!.sessions.value.single().attachedViewCount == 0 }
+                Thread.sleep(350)
+                stage = "reattach ${pass + 1}"
+                test.runOnMainSync { showing.value = true }
+                requestSoftwareKeyboardForHardwareFixture()
+                awaitSettledPrompt()
+                check(dials.get() == 3) { "Keyboard reattachment reconnected SSH" }
+            }
+            test.uiAutomation.takeScreenshot()?.let { bitmap ->
+                java.io.File(activity.cacheDir, "ssh-reattach-keyboard.png").outputStream().use {
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                }
+                bitmap.recycle()
+            }
+            stage = "background and resume"
             SessionResumeUiChecks.backgroundAndResume(test, activity)
             check(runtime.state.value.connected && registry!!.sessions.value.single().attachedViewCount == 1) {
                 "Backgrounding detached or disconnected the SSH session"

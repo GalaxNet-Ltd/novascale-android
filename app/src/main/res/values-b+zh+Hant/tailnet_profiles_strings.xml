@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="login_server_edit">編輯</string>
+    <string name="login_server_edit_title">變更登入伺服器</string>
+    <string name="login_server_clear">清除伺服器位址</string>
+    <string name="login_server_invalid">請輸入有效的 HTTPS 伺服器網址，不含憑證、查詢參數或片段。</string>
     <string name="tailnets_title">Tailnet 網路</string>
     <string name="tailnets_add">新增網路</string>
     <string name="tailnets_name">名稱</string>

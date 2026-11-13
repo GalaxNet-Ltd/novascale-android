@@ -295,7 +295,8 @@ internal class NovaScaleNavigationModel : ViewModel() {
 
     fun invalidateTailnetDestinations() {
         fun keep(destination: AppDestination?): AppDestination? = when (destination) {
-            is AppDestination.TraditionalTerminal, is AppDestination.TraditionalHerdr, is AppDestination.TraditionalFiles, AppDestination.Tailnets -> destination
+            is AppDestination.TraditionalTerminal, is AppDestination.TraditionalHerdr, is AppDestination.TraditionalFiles,
+            AppDestination.Tailnets, AppDestination.Login -> destination
             else -> null
         }
         mutableUiState.update { current ->
@@ -581,7 +582,7 @@ internal fun NovaScaleApp(
                 is AppDestination.TraditionalFiles -> sftpTransport == SshTransport.DIRECT
                 else -> false
             }
-            if (!retainedDirect && current != AppDestination.Tailnets) {
+            if (!retainedDirect && current != AppDestination.Tailnets && current != AppDestination.Login) {
                 navigation.open(null)
             }
         }
@@ -791,6 +792,7 @@ internal fun NovaScaleApp(
                     profile = profilesState.active,
                     profiles = profiles,
                     onManage = { navigation.open(AppDestination.Tailnets) },
+                    onChangeServer = { url -> profilesState.active?.let { profiles.replace(it.name, url) } },
                     returnOnConnected = true,
                     onConnected = {
                         navigation.resetToHome()
@@ -2014,6 +2016,7 @@ internal fun TailnetLoginScreen(
     profile: TailnetProfile? = null,
     profiles: TailnetProfileController? = null,
     onManage: (() -> Unit)? = null,
+    onChangeServer: ((String) -> Unit)? = null,
     onConnected: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -2021,18 +2024,21 @@ internal fun TailnetLoginScreen(
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val preferences = remember(context) { TailnetProfilePreferences(context) }
-    val profileBusy = profiles?.state?.collectAsStateWithLifecycle()?.value?.busy == true
+    val profileState = profiles?.state?.collectAsStateWithLifecycle()?.value
+    val profileBusy = profileState?.busy == true
+    var editingServer by rememberSaveable(profile?.id) { mutableStateOf(false) }
     var controlServer by rememberSaveable(profile?.id) { mutableStateOf(profile?.controlUrl ?: preferences.controlServer) }
-    var useAuthKey by rememberSaveable { mutableStateOf(false) }
-    // Secrets deliberately never enter saved state or preferences.
-    var authKey by remember { mutableStateOf("") }
-    var awaiting by rememberSaveable { mutableStateOf(false) }
-    var browserOpened by rememberSaveable { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var slow by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<UiText?>(null) }
-    var openedLoginUrl by remember { mutableStateOf<String?>(null) }
-    var job by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var useAuthKey by rememberSaveable(profile?.id) { mutableStateOf(false) }
+    // Secrets never enter saved state, preferences, or another profile's form.
+    // Login can remain open when another window switches the active tailnet.
+    var authKey by remember(profile?.id) { mutableStateOf("") }
+    var awaiting by rememberSaveable(profile?.id) { mutableStateOf(false) }
+    var browserOpened by rememberSaveable(profile?.id) { mutableStateOf(false) }
+    var busy by remember(profile?.id) { mutableStateOf(false) }
+    var slow by remember(profile?.id) { mutableStateOf(false) }
+    var message by remember(profile?.id) { mutableStateOf<UiText?>(null) }
+    var openedLoginUrl by remember(profile?.id) { mutableStateOf<String?>(null) }
+    var job by remember(profile?.id) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val loginState = tailnetState as? TailnetState.LoginRequired
     val loginUrl = loginState?.request?.url ?: openedLoginUrl
 
@@ -2099,14 +2105,33 @@ internal fun TailnetLoginScreen(
         }
         return
     }
+    if (editingServer && profile != null && onChangeServer != null) {
+        cc.galaxnet.novascale.tailnet.LoginServerSheet(profile.controlUrl,
+            onDismiss = { editingServer = false },
+            onSave = { url ->
+                editingServer = false
+                authKey = ""
+                openedLoginUrl = null
+                browserOpened = false
+                message = null
+                onChangeServer(url)
+            })
+    }
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(if (profile != null) stringResource(R.string.tailnets_login_profile, profile.name)
             else stringResource(R.string.connect_tailnet), style = MaterialTheme.typography.headlineMedium)
         TailnetStatusCard(tailnetState)
         message?.let { Text(it.asString()) }
+        profileState?.error?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.error) }
         if (profile != null) {
-            Text(profile.controlUrl, style = MaterialTheme.typography.bodySmall, color = NovaTheme.colors.textSecondary)
+            OutlinedTextField(profile.controlUrl, {}, Modifier.fillMaxWidth(), readOnly = true,
+                singleLine = true, label = { Text(stringResource(R.string.label_control_server)) },
+                trailingIcon = {
+                    if (onChangeServer != null) TextButton(enabled = !busy && !profileBusy,
+                        onClick = { editingServer = true }) { Text(stringResource(R.string.login_server_edit)) }
+                },
+                supportingText = { Text(stringResource(R.string.control_server_description)) })
             onManage?.let { TextButton(onClick = it) { Text(stringResource(R.string.tailnets_manage)) } }
         } else {
         TextButton(

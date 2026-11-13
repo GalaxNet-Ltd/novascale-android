@@ -79,6 +79,17 @@ class NovaScaleNavigationModelTest {
         assertEquals(AppDestination.Tailnets, model.uiState.value.settingsDestination)
     }
 
+    @Test fun editingLoginServerKeepsSetupOpenWhileOldHostDestinationsAreCleared() {
+        val model = NovaScaleNavigationModel()
+        model.bindProfile("original")
+        model.open(AppDestination.Host(testPeer("old-network")))
+        model.open(AppSection.SETTINGS, AppDestination.Login)
+        model.invalidateTailnetDestinations()
+        model.bindProfile("replacement")
+        assertEquals(AppDestination.Login, model.uiState.value.destination)
+        assertNull(model.uiState.value.homeDestination)
+    }
+
     private fun testPeer(id: String) = TailnetPeer(
         stableNodeId = id,
         displayName = id,

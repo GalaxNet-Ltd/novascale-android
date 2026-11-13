@@ -25,12 +25,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 
 internal data class TerminalConnectionState(
     val status: UiText = uiText(R.string.terminal_status_preparing),
@@ -84,9 +86,10 @@ internal class TerminalConnectionController(
     private var nativeSession: NativeSession? = null
     private var connectJob: Job? = null
     private var eventJob: Job? = null
+    private var resizeJob: Job? = null
     private var lastConfig: RemoteConnectionConfig? = null
-    private var columns = 80
-    private var rows = 24
+    private data class Geometry(val columns: Int = 80, val rows: Int = 24, val cellWidth: Int = 8, val cellHeight: Int = 16)
+    private val geometry = MutableStateFlow(Geometry())
     private var terminalTheme: NativeTerminalTheme? = null
     override val activeTransport: SshTransport?
         get() = if (nativeSession != null || connectJob?.isActive == true) lastConfig?.transport else null
@@ -106,11 +109,24 @@ internal class TerminalConnectionController(
             )
             try {
                 val expected = knownHosts.fingerprint(config)
+                val initialSize = geometry.value
                 val start = withContext(Dispatchers.IO) {
-                    NativeSession.prepareSsh(config.request(expected, columns, rows, terminalTheme))
+                    NativeSession.prepareSsh(config.request(expected, initialSize.columns, initialSize.rows, terminalTheme))
                 }
                 val session = startRemoteSession(config, tailnet, start)
                 nativeSession = session
+                // One writer per session preserves keyboard resize order. StateFlow
+                // also replays geometry that changed during dial/handshake and drops
+                // obsolete animation sizes. Never target a later session from an old job.
+                resizeJob = scope.launch(Dispatchers.IO) {
+                    geometry.collectLatest { size ->
+                        while (!session.resize(size.columns, size.rows, size.cellWidth, size.cellHeight)) {
+                            // A full native command queue must not lose the final size.
+                            // A newer size cancels this retry; session disposal cancels the worker.
+                            delay(16)
+                        }
+                    }
+                }
                 // A preference change can race the dial/handshake. Re-send the
                 // latest palette after ownership is published so that change is
                 // never lost between request construction and session creation.
@@ -163,18 +179,12 @@ internal class TerminalConnectionController(
         scope.launch(Dispatchers.IO) { nativeSession?.sendInput(bytes) }
     }
 
-    private var cellWidth = 8
-    private var cellHeight = 16
-
-    override fun resize(newColumns: Int, newRows: Int) = resizeWithMetrics(newColumns, newRows, cellWidth, cellHeight)
+    override fun resize(newColumns: Int, newRows: Int) =
+        resizeWithMetrics(newColumns, newRows, geometry.value.cellWidth, geometry.value.cellHeight)
 
     override fun resizeWithMetrics(columns: Int, rows: Int, cellWidth: Int, cellHeight: Int) {
-        this.columns = columns.coerceIn(20, 500)
-        this.rows = rows.coerceIn(5, 300)
-        this.cellWidth = cellWidth.coerceIn(1, 512)
-        this.cellHeight = cellHeight.coerceIn(1, 512)
-        val size = intArrayOf(this.columns, this.rows, this.cellWidth, this.cellHeight)
-        scope.launch(Dispatchers.IO) { nativeSession?.resize(size[0], size[1], size[2], size[3]) }
+        geometry.value = Geometry(columns.coerceIn(20, 500), rows.coerceIn(5, 300),
+            cellWidth.coerceIn(1, 512), cellHeight.coerceIn(1, 512))
     }
 
     override fun scroll(rows: Int) {
@@ -269,6 +279,8 @@ internal class TerminalConnectionController(
     }
 
     private suspend fun closeNative() {
+        resizeJob?.cancel()
+        resizeJob = null
         eventJob?.cancel()
         eventJob = null
         val session = nativeSession
@@ -283,6 +295,8 @@ internal class TerminalConnectionController(
                 if (nativeSession === session) {
                     val wasConnected = mutableState.value.connected
                     nativeSession = null
+                    resizeJob?.cancel()
+                    resizeJob = null
                     eventJob = null
                     mutableState.value = block(mutableState.value)
                     if (shellExited && wasConnected) onExited?.invoke()
@@ -301,6 +315,8 @@ internal class TerminalConnectionController(
     }
 
     override fun close() {
+        resizeJob?.cancel()
+        resizeJob = null
         connectJob?.cancel()
         connectJob = null
         eventJob?.cancel()

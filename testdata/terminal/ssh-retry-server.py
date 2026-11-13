@@ -28,6 +28,10 @@ class Server(paramiko.ServerInterface):
     def check_channel_shell_request(self, channel):
         return True
 
+    def check_channel_window_change_request(self, *args):
+        # Deliberately do not repaint. Local resize updates cannot depend on output.
+        return True
+
 
 def kitty_roundtrip(channel):
     # A noisy RGB PNG exceeds the SSH receive window and exercises chunked,
@@ -106,6 +110,9 @@ def main():
                             # Deliberately never release the hold or send more data.
                             # The native event loop must schedule the timeout itself.
                             channel.sendall(b"\x1b[?2026h\x1b[2J\x1b[HSYNC-PENDING")
+                        if command == b"fixture-prompt":
+                            channel.sendall(b"\x1b[2J\x1b[H" + b"previous output\r\n" * 100 +
+                                            b"+----------------+\r\n> QUIET-PROMPT\r\n+--PROMPT-BOTTOM--+")
         except (paramiko.SSHException, EOFError, OSError):
             pass
         finally:

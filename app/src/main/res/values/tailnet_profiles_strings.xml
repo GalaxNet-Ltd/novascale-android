@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="login_server_edit">Edit</string>
+    <string name="login_server_edit_title">Change login server</string>
+    <string name="login_server_clear">Clear server address</string>
+    <string name="login_server_invalid">Enter a valid HTTPS server URL without credentials, a query, or a fragment.</string>
     <string name="tailnets_title">Tailnets</string>
     <string name="tailnets_add">Add tailnet</string>
     <string name="tailnets_name">Name</string>
