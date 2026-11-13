@@ -40,9 +40,10 @@ override in Settings for testing without checkout. Community builds remain
 unrestricted by default.
 
 The Play adapter reads `NOVASCALE_PLAY_BILLING_PUBLIC_KEY` from a Gradle property
-or environment variable. This RSA public key is non-secret build configuration
-and must accompany the corresponding source for an official billing-enabled
-release. Without a valid key, checkout stays unavailable; fixture tests and
+or environment variable, falling back to `app/play-billing-public-key.txt`.
+The checked-in RSA public key is non-secret configuration for the official
+application and accompanies its reproducible source. Forks publishing a separate
+Play app must supply their own app's public key. Without a valid key, checkout stays unavailable; fixture tests and
 debug Free/Pro controls need no key or Google account.
 
 ## Build

@@ -34,7 +34,8 @@ val privacyPolicyUrl = "https://galaxnet.dev/nova/legal/privacy/"
 val termsOfServiceUrl = "https://galaxnet.dev/nova/legal/tos/"
 // Play Console's PUBLIC licensing key, not a service-account/private signing credential.
 val billingPublicKey = providers.gradleProperty("NOVASCALE_PLAY_BILLING_PUBLIC_KEY")
-    .orElse(providers.environmentVariable("NOVASCALE_PLAY_BILLING_PUBLIC_KEY")).orElse("")
+    .orElse(providers.environmentVariable("NOVASCALE_PLAY_BILLING_PUBLIC_KEY"))
+    .orElse(providers.fileContents(layout.projectDirectory.file("play-billing-public-key.txt")).asText)
     .map { it.filterNot(Char::isWhitespace) }.get()
 val uploadStorePath = providers.environmentVariable("NOVASCALE_UPLOAD_STORE_FILE").orNull
 val uploadStorePassword = providers.environmentVariable("NOVASCALE_UPLOAD_STORE_PASSWORD").orNull
