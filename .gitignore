@@ -25,3 +25,7 @@ app/libs/*.aar
 .kotlin/
 native/**/target/
 app/libs/*-sources.jar
+
+# Python helper-script caches.
+__pycache__/
+*.py[cod]
