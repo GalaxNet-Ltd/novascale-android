@@ -6,6 +6,10 @@ their unmodified Maven binaries. Any future library modifications must retain
 the applicable LGPL terms and be published with matching source, which may be a
 separate public fork. Application-level adapters remain in this repository.
 
+The 1.1.0 release includes the [matching editor and grammar source archive](editor-and-grammar-sources.tar.gz)
+and [source pins](source-pins.json) in this immutable source tag. The archive's
+SHA-256 and direct download are recorded in [RELEASE.md](../../RELEASE.md).
+
 | Component | Source and release inputs |
 | --- | --- |
 | Sora Editor and its Tree-sitter adapter, LGPL-2.1-or-later | [Pinned source](https://github.com/Rosemoe/sora-editor/tree/1e199e11dcbf9e6526cdcbdf1bdb25b74140496a), version 0.24.4; `../sora-editor/README.md` records AAR hashes |

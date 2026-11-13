@@ -1,0 +1,24 @@
+{
+  "sora-editor": {
+    "commit": "1e199e11dcbf9e6526cdcbdf1bdb25b74140496a",
+    "submodules": [
+      " 1ea354208c8f197eaf42486af78f55e2425e3762 oniguruma-native/src/main/cpp/oniguruma (1ea3542)"
+    ]
+  },
+  "android-tree-sitter": {
+    "commit": "797150222de664181e31be53e9a5b253056ba9b0",
+    "submodules": [
+      " 76999e068fab22487e50111baaf0e160a3e953b8 grammars/aidl (heads/main)",
+      " 371fd0bf0650581b6e49f06f438c88c419859696 grammars/c (371fd0b)",
+      " e0c1678a78731e78655b7d953efb4daecf58be46 grammars/cpp (e0c1678)",
+      " b882ba058034c200be5c392d1275941fe64fe216 grammars/java (heads/master)",
+      " 3b129203f4b72d532f58e72c5310c0a7db3b8e6d grammars/json (3b12920)",
+      " 6590e9ba746f3042a5c23611a266a934c3d3289b grammars/kotlin (heads/main)",
+      " 268e9eba2a27f0429b998216d07394913c231672 grammars/log (heads/main)",
+      " cb60fd8d09d8d7adcde6da30c42f18513335651f grammars/properties (heads/main)",
+      " b8a4c64121ba66b460cb878e934e3157ecbfb124 grammars/python (b8a4c64)",
+      " a1e5891a40ad79ca476d48ad687a3f304f8ee735 grammars/xml (heads/main)",
+      " ca7d15add61bf77391d387d26441599b96c0eb9c tree-sitter-lib (ca7d15a)"
+    ]
+  }
+}

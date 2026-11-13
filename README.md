@@ -6,14 +6,22 @@ This repository contains the Android application and its build instructions. The
 
 ## Release status
 
-NovaScale 1.0.0 (version code 1) is [available on Google Play](https://play.google.com/store/apps/details?id=cc.galaxnet.novascale). The [`v1.0.0-play.1` tag](https://github.com/GalaxNet-Ltd/novascale-android/tree/v1.0.0-play.1) identifies the source for that binary. Store submission records and signing credentials live in a separate private workspace.
+This source corresponds to NovaScale **1.1.0 (version code 7)**. The immutable
+[`v1.1.0-play.7` tag](https://github.com/GalaxNet-Ltd/novascale-android/tree/v1.1.0-play.7)
+contains the application source, dependency records and matching LGPL source
+archive. See [RELEASE.md](RELEASE.md) for the build inputs and source downloads.
+The application is distributed through [Google Play](https://play.google.com/store/apps/details?id=cc.galaxnet.novascale).
+Historical release tags retain their original source and license terms. Store
+submission records and signing credentials live in a separate private workspace.
 
 The Android application includes:
 
 - One app-scoped `tsnet.Server` built from official stable `tailscale.com v1.102.4`; no `tailscale/libtailscale` and no Android `VpnService`.
 - External-browser web login, multiple saved tailnets with one active node, default/custom HTTPS control servers, isolated persisted identities and SSH settings, native profile switching, lifetime peer discovery with an online-only default, route-aware Tailscale ping, logout, and a socket-pair FD bridge for tailnet streams.
 - `russh 0.62.2` SSH with Tailscale SSH none, password, and OpenSSH private-key authentication; strict shared TOFU/change host-key handling; PTY resize; and up to six terminal tabs.
-- `libghostty-vt` 1.0.0 (`vt-1.0.0`), pinned to commit `0fa3d577a5614150ff8e2c152de5fb9d5c6d2dec`, exposed through a narrow Zig/Rust binary-snapshot adapter.
+- `libghostty-vt` 1.0.0 (`vt-1.0.0`), pinned to commit `0fa3d577a5614150ff8e2c152de5fb9d5c6d2dec`, using its stable public C API through NovaScale's incremental snapshot adapter.
+- Herdr Remote with native workspace, tab and agent controls, retained sessions, scrollback and terminal keyboard support.
+- Direct SSH hosts alongside tailnet hosts, custom host groups and pinned hosts.
 - Kitty graphics for direct PNG/RGB/RGBA uploads, zlib/chunking, Unicode placeholders, and Canvas rendering, with bounded native decoding and cached image assets.
 - An independent Android terminal view using hardware-accelerated Canvas, cached fonts/text metrics and retained row drawing commands, with IME/hardware-key input, selection, paste, scrolling and pinch-to-resize.
 - An iOS-aligned Compose design system, compact grouped host surfaces, saved-SSH continuation, automatic Terminal/Files connection, and a two-row terminal accessory with a drag arrow pad, one-shot Ctrl/Alt/Shift, bracketed-paste newline, symbols, and F1–F12.
@@ -30,8 +38,9 @@ The Android product-fidelity rules and the iOS-to-Android review backlog are in 
 
 The published application ID is `cc.galaxnet.novascale`.
 
-Android Pro's direct, serverless Google Play billing manager and native purchase
-sheet are under development. See [TESTING.md](TESTING.md#billing-development-variants)
+Android Pro uses direct, serverless Google Play billing and a native purchase
+sheet. Its one-time unlock supports ongoing development and expands saved
+tailnets, host groups and daily Herdr usage. See [TESTING.md](TESTING.md#billing-development-variants)
 for fixture tests and the [dependency record](third_party/play-billing/README.md)
 for the Play SDK terms and distribution checks.
 Community builds include all local features without a billing SDK. Feature
